@@ -192,7 +192,8 @@ export function VideoCard({
   };
 
   const captionFont = { fontFamily: "var(--font-roslindale-text)" };
-  const labelClass = "text-[11px] tracking-wide text-[#0a1f15]";
+  const labelClass =
+    "text-[11px] tracking-wide text-[#0a1f15] transition-colors group-hover:text-emerald-600";
 
   if (variant === "list") {
     return (
@@ -200,11 +201,11 @@ export function VideoCard({
         {...handlers}
         role="button"
         tabIndex={0}
-        className="group flex cursor-pointer select-none flex-col items-stretch gap-3 md:flex-row md:items-start md:gap-6"
+        className="group flex cursor-pointer select-none flex-col items-stretch gap-3 transition-transform duration-300 ease-out hover:scale-[1.02] md:flex-row md:items-start md:gap-6"
       >
         <div className="w-full shrink-0 md:w-[340px]">{preview}</div>
         <div className="min-w-0 pt-1">
-          <h3 className="font-serif text-[24px] leading-[1.1] tracking-tight text-[#040d08] md:text-[28px]">
+          <h3 className="font-serif text-[24px] leading-[1.1] tracking-tight text-[#040d08] transition-colors group-hover:text-emerald-600 md:text-[28px]">
             {name}
           </h3>
           <p className={`mt-1 ${labelClass}`} style={captionFont}>
@@ -220,10 +221,10 @@ export function VideoCard({
       {...handlers}
       role="button"
       tabIndex={0}
-      className="group cursor-pointer select-none"
+      className="group cursor-pointer select-none transition-transform duration-300 ease-out hover:scale-[1.02]"
     >
       {preview}
-      <h3 className="font-serif mt-3 text-[26px] leading-[1.05] tracking-tight text-[#040d08] md:text-[28px]">
+      <h3 className="font-serif mt-3 text-[26px] leading-[1.05] tracking-tight text-[#040d08] transition-colors group-hover:text-emerald-600 md:text-[28px]">
         {name}
       </h3>
       <p className={`mt-1 ${labelClass}`} style={captionFont}>

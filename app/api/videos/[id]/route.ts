@@ -1,8 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
+import { z } from "zod";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
 import type { processVideo } from "../../../../trigger/processVideo";
+
+const PatchBody = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    category: z.enum(["film-tv", "commercial", "music"]).optional(),
+    role: z.enum(["Producer", "Talent"]).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "At least one field is required",
+  });
 
 async function requireAdmin(): Promise<
   { ok: true } | { ok: false; res: NextResponse }
@@ -112,4 +123,39 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       { status: 502 },
     );
   }
+}
+
+/**
+ * PATCH /api/videos/<id> — edit name / category / role for an existing row.
+ * The Vimeo URL itself is immutable (it's the primary key); to swap to a
+ * different video, delete this row and add a new one.
+ */
+export async function PATCH(request: NextRequest, ctx: Ctx) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.res;
+
+  const { id } = await ctx.params;
+  const json = await request.json().catch(() => null);
+  const parsed = PatchBody.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "invalid_body", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("videos")
+    .update(parsed.data)
+    .eq("vimeo_id", id)
+    .select("vimeo_id,name,category,role")
+    .maybeSingle();
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true, video: data });
 }

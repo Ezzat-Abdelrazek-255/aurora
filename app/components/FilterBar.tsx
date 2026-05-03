@@ -74,7 +74,7 @@ export function FilterBar() {
   return (
     <div
       data-testid="filter-bar"
-      className="pointer-events-auto fixed right-[112px] top-4 z-40 flex min-h-[40px] items-center gap-5 text-[14px] md:gap-6 md:text-[15px]"
+      className="pointer-events-auto fixed right-[112px] top-4 z-40 hidden min-h-[40px] items-center gap-5 text-[14px] md:flex md:gap-6 md:text-[15px]"
       style={{ fontFamily: "var(--font-roslindale-text)" }}
       role="toolbar"
       aria-label="Filter and search"
