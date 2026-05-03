@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 type ModalVideo = {
   id: string;
   hash: string;
   title: string;
   brand: string;
+  thumb?: string | null;
 };
 
 type Props = {
@@ -15,8 +16,13 @@ type Props = {
 };
 
 export function VideoModal({ video, onClose }: Props) {
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+
   useEffect(() => {
-    if (!video) return;
+    if (!video) {
+      setIframeLoaded(false);
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -28,13 +34,18 @@ export function VideoModal({ video, onClose }: Props) {
     };
   }, [video, onClose]);
 
+  // Reset the loaded flag every time a new video opens.
+  useEffect(() => {
+    setIframeLoaded(false);
+  }, [video?.id]);
+
   if (!video) return null;
 
   const src = `https://player.vimeo.com/video/${video.id}?h=${video.hash}&autoplay=1&dnt=1&playsinline=1`;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm md:p-10"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm md:p-10"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -60,23 +71,52 @@ export function VideoModal({ video, onClose }: Props) {
       </button>
 
       <div
-        className="relative w-full max-w-[1400px]"
-        style={{ aspectRatio: 16 / 9 }}
+        className="relative flex w-full max-w-[1400px] flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <iframe
-          src={src}
-          title={`${video.brand} — ${video.title}`}
-          allow="autoplay; fullscreen; picture-in-picture"
-          allowFullScreen
-          className="absolute inset-0 h-full w-full border-0"
-        />
         <div
-          className="pointer-events-none absolute -bottom-10 left-0 right-0 text-white/90"
+          className="relative w-full overflow-hidden bg-neutral-900"
+          style={{ aspectRatio: 16 / 9 }}
+        >
+          {video.thumb && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={video.thumb}
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out ${
+                iframeLoaded ? "opacity-0" : "opacity-100"
+              }`}
+            />
+          )}
+          {!iframeLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span
+                className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                aria-hidden="true"
+              />
+            </div>
+          )}
+          <iframe
+            key={video.id}
+            src={src}
+            title={`${video.brand} — ${video.title}`}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            onLoad={() => setIframeLoaded(true)}
+            className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ease-out ${
+              iframeLoaded ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        </div>
+
+        <div
+          className="pointer-events-none mt-6 text-white/90 md:mt-8"
           style={{ fontFamily: "var(--font-roslindale-text)" }}
         >
           <p className="text-[11px] tracking-wide opacity-80">{video.brand}</p>
-          <h2 className="font-serif text-[18px] leading-tight md:text-[20px]">
+          <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
             {video.title}
           </h2>
         </div>

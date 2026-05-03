@@ -8,6 +8,7 @@ type ModalVideo = {
   hash: string;
   title: string;
   brand: string;
+  thumb?: string | null;
 };
 
 const Ctx = createContext<((v: ModalVideo) => void) | null>(null);

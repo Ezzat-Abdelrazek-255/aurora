@@ -127,7 +127,7 @@ export function VideoCard({
   };
 
   const onClick = () => {
-    openVideo({ id, hash, title, brand });
+    openVideo({ id, hash, title, brand, thumb });
   };
 
   return (
