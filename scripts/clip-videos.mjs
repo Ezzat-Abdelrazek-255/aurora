@@ -105,11 +105,19 @@ function clip(id, hlsUrl) {
       "22",
       "-pix_fmt",
       "yuv420p",
+      // Every frame is a keyframe — reverse playback via repeated
+      // setCurrentTime needs to seek freely without decoding from the prior
+      // I-frame each time. Costs ~2× file size vs. default GOP, worth it for
+      // a 2s clip.
+      "-g",
+      "1",
+      "-x264-params",
+      "keyint=1:min-keyint=1:scenecut=0",
       "-an",
       "-movflags",
       "+faststart",
       "-vf",
-      "scale='min(1280,iw)':-2",
+      "scale='min(960,iw)':-2",
       out,
     ]);
     let stderr = "";

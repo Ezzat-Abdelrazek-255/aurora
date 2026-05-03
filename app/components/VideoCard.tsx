@@ -12,7 +12,6 @@ type Props = {
   aspect: number;
 };
 
-const LOOP_END = 2; // seconds — bounce window upper bound
 const REVERSE_RATE = 1; // 1× = real-time reverse
 
 export function VideoCard({
@@ -27,13 +26,12 @@ export function VideoCard({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hoverRef = useRef(false);
-  const phaseRef = useRef<"forward" | "reverse" | "idle">("idle");
   const reverseRafRef = useRef<number | null>(null);
   const reverseStartMsRef = useRef(0);
   const reverseStartTimeRef = useRef(0);
   const [mounted, setMounted] = useState(false);
 
-  // Lazy-mount the <video> element so we don't ship 14 inline preloads at once.
+  // Lazy-mount the <video> element so we don't ship 14 preloads at once.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -64,11 +62,10 @@ export function VideoCard({
     }
   };
 
-  // Reverse phase: drive currentTime backward each frame. Local mp4s seek
-  // instantly so this is buttery on any modern device.
+  // Drive currentTime backwards each frame. Local mp4 seeks are instant so
+  // this is smooth at 60Hz.
   const startReverse = (fromTime: number) => {
     cancelReverse();
-    phaseRef.current = "reverse";
     reverseStartMsRef.current = performance.now();
     reverseStartTimeRef.current = fromTime;
 
@@ -86,9 +83,9 @@ export function VideoCard({
       const t = reverseStartTimeRef.current - elapsed * REVERSE_RATE;
 
       if (t <= 0) {
-        v.currentTime = 0;
-        phaseRef.current = "forward";
         reverseRafRef.current = null;
+        v.currentTime = 0;
+        // Restart forward — the next `ended` event will bring us back here.
         v.play().catch(() => {});
         return;
       }
@@ -98,17 +95,15 @@ export function VideoCard({
     reverseRafRef.current = requestAnimationFrame(step);
   };
 
-  const onTimeUpdate = () => {
+  // Forward boundary: the clip ran out. Switch to reverse from wherever the
+  // video stopped (≈ duration). We rely on the native `ended` event because
+  // polling `currentTime` against a 2.0s clip is racy.
+  const onEnded = () => {
+    if (!hoverRef.current) return;
     const v = videoRef.current;
     if (!v) return;
-    if (
-      hoverRef.current &&
-      phaseRef.current === "forward" &&
-      v.currentTime >= LOOP_END
-    ) {
-      v.pause();
-      startReverse(v.currentTime);
-    }
+    const from = v.currentTime || v.duration || 2;
+    startReverse(from);
   };
 
   const onEnter = () => {
@@ -117,7 +112,6 @@ export function VideoCard({
     const v = videoRef.current;
     if (!v) return;
     cancelReverse();
-    phaseRef.current = "forward";
     v.currentTime = 0;
     v.play().catch(() => {});
   };
@@ -125,7 +119,6 @@ export function VideoCard({
   const onLeave = () => {
     hoverRef.current = false;
     cancelReverse();
-    phaseRef.current = "idle";
     const v = videoRef.current;
     if (v) v.pause();
   };
@@ -175,7 +168,7 @@ export function VideoCard({
             preload="metadata"
             disablePictureInPicture
             controlsList="nodownload nofullscreen noremoteplayback"
-            onTimeUpdate={onTimeUpdate}
+            onEnded={onEnded}
             className="absolute inset-0 h-full w-full object-cover"
             onContextMenu={(e) => e.preventDefault()}
             draggable={false}
