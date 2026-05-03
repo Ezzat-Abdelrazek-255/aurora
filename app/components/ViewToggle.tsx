@@ -1,84 +1,102 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useView } from "./ViewProvider";
 
-export type ViewMode = "grid" | "list";
+const BUTTON_PX = 32;
+const GAP_PX = 2;
 
-export function ViewToggle({ view }: { view: ViewMode }) {
-  const router = useRouter();
-  const sp = useSearchParams();
-  const [pending, startTransition] = useTransition();
-
-  const setView = (next: ViewMode) => {
-    if (next === view) return;
-    const params = new URLSearchParams(sp.toString());
-    if (next === "grid") params.delete("view");
-    else params.set("view", next);
-    startTransition(() => {
-      router.push(`/?${params.toString()}`, { scroll: false });
-    });
-  };
+export function ViewToggle() {
+  const { view, setView } = useView();
+  const isList = view === "list";
 
   return (
     <div
-      className="fixed right-4 top-4 z-50 flex items-center gap-0.5 rounded-full border border-neutral-200 bg-white/85 p-1 shadow-sm backdrop-blur"
-      style={{ fontFamily: "var(--font-roslindale-text)" }}
-      aria-label="Layout view"
+      className="fixed right-4 top-4 z-50 flex items-center rounded-full border border-neutral-200 bg-white/90 p-1 shadow-sm backdrop-blur"
+      style={{ gap: GAP_PX, fontFamily: "var(--font-roslindale-text)" }}
       role="group"
+      aria-label="Layout view"
     >
+      {/* Sliding active indicator */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1 top-1 rounded-full bg-neutral-900 transition-transform duration-300 ease-out"
+        style={{
+          width: BUTTON_PX,
+          height: BUTTON_PX,
+          transform: `translateX(${isList ? BUTTON_PX + GAP_PX : 0}px)`,
+        }}
+      />
+
       <button
         type="button"
         onClick={() => setView("grid")}
-        disabled={pending}
-        aria-pressed={view === "grid"}
+        aria-pressed={!isList}
         title="Grid view"
-        className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
-          view === "grid"
-            ? "bg-neutral-900 text-white"
-            : "text-neutral-600 hover:bg-neutral-100"
+        className={`relative z-10 flex items-center justify-center rounded-full transition-colors duration-200 ${
+          !isList ? "text-white" : "text-neutral-500 hover:text-neutral-900"
         }`}
+        style={{ width: BUTTON_PX, height: BUTTON_PX }}
       >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <rect x="3" y="3" width="8" height="8" rx="1" />
-          <rect x="13" y="3" width="8" height="8" rx="1" />
-          <rect x="3" y="13" width="8" height="8" rx="1" />
-          <rect x="13" y="13" width="8" height="8" rx="1" />
-        </svg>
+        <GridIcon />
       </button>
+
       <button
         type="button"
         onClick={() => setView("list")}
-        disabled={pending}
-        aria-pressed={view === "list"}
+        aria-pressed={isList}
         title="List view"
-        className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
-          view === "list"
-            ? "bg-neutral-900 text-white"
-            : "text-neutral-600 hover:bg-neutral-100"
+        className={`relative z-10 flex items-center justify-center rounded-full transition-colors duration-200 ${
+          isList ? "text-white" : "text-neutral-500 hover:text-neutral-900"
         }`}
+        style={{ width: BUTTON_PX, height: BUTTON_PX }}
       >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <rect x="3" y="5" width="6" height="3" rx="0.5" />
-          <rect x="11" y="5" width="10" height="2" rx="0.5" />
-          <rect x="3" y="11" width="6" height="3" rx="0.5" />
-          <rect x="11" y="11" width="10" height="2" rx="0.5" />
-          <rect x="3" y="17" width="6" height="3" rx="0.5" />
-          <rect x="11" y="17" width="10" height="2" rx="0.5" />
-        </svg>
+        <ListIcon />
       </button>
     </div>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* Three rows: a small thumbnail rect on the left, a line to its right */}
+      <rect x="3" y="4.5" width="6" height="4" rx="0.8" />
+      <line x1="11" y1="6.5" x2="21" y2="6.5" />
+      <rect x="3" y="10" width="6" height="4" rx="0.8" />
+      <line x1="11" y1="12" x2="21" y2="12" />
+      <rect x="3" y="15.5" width="6" height="4" rx="0.8" />
+      <line x1="11" y1="17.5" x2="21" y2="17.5" />
+    </svg>
   );
 }
