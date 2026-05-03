@@ -200,9 +200,9 @@ export function VideoCard({
         {...handlers}
         role="button"
         tabIndex={0}
-        className="group flex cursor-pointer select-none items-start gap-6"
+        className="group flex cursor-pointer select-none flex-col items-stretch gap-3 md:flex-row md:items-start md:gap-6"
       >
-        <div className="w-[280px] shrink-0 md:w-[340px]">{preview}</div>
+        <div className="w-full shrink-0 md:w-[340px]">{preview}</div>
         <div className="min-w-0 pt-1">
           <h3 className="font-serif text-[24px] leading-[1.1] tracking-tight text-[#040d08] md:text-[28px]">
             {name}

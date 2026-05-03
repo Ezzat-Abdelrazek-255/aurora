@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "clips": "node scripts/clip-videos.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

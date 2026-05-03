@@ -101,7 +101,7 @@ export default async function Home({
       <FilteredCell
         key={`${seed}-${copy}-${cell.index}`}
         video={{ name: v.name, role: v.role, category: v.category }}
-        className={alignClass[cell.align]}
+        className={`${alignClass[cell.align]} max-md:w-full! max-md:mt-0!`}
         style={{
           width: `${cell.widthPct}%`,
           marginTop: `calc(var(--layout-y, 1) * ${cell.marginUnit * 0.25}rem)`,
@@ -130,9 +130,9 @@ export default async function Home({
           className="grid grid-cols-1 px-4 pb-8 pt-8 md:grid-cols-3 md:px-6 lg:px-10"
           style={{ columnGap: "var(--layout-x, 16px)" }}
         >
-          <div className="flex flex-col">{cols[0].map(renderCell(copy))}</div>
-          <div className="flex flex-col">{cols[1].map(renderCell(copy))}</div>
-          <div className="flex flex-col">{cols[2].map(renderCell(copy))}</div>
+          <div className="flex flex-col max-md:gap-y-8">{cols[0].map(renderCell(copy))}</div>
+          <div className="flex flex-col max-md:gap-y-8 max-md:mt-8">{cols[1].map(renderCell(copy))}</div>
+          <div className="flex flex-col max-md:gap-y-8 max-md:mt-8">{cols[2].map(renderCell(copy))}</div>
         </section>
       ))}
     </>
