@@ -61,6 +61,9 @@ function runProbe(bin: string, args: string[]): Promise<string> {
 export const processVideo = task({
   id: "process-video",
   maxDuration: 180,
+  // ffmpeg + HLS fetch + Supabase upload OOMs on the default 1 GB machine.
+  // small-2x gives us 2 GB / 1 vCPU which is comfortable for a 3s 960p clip.
+  machine: "small-2x",
   run: async (payload: Payload) => {
     const { vimeoId, vimeoHash } = payload;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
