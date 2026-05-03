@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { ScrollIndicator } from "./components/ScrollIndicator";
 import { SeedControls } from "./components/SeedControls";
+import { SmoothScroll } from "./components/SmoothScroll";
 import { VideoCard } from "./components/VideoCard";
+import { ViewToggle, type ViewMode } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
 import { DEFAULT_SEED } from "./lib/seed";
 import { getVimeoMeta, videos } from "./lib/videos";
@@ -19,6 +22,7 @@ type SearchParams = Promise<{
   x?: string | string[];
   y?: string | string[];
   move?: string | string[];
+  view?: string | string[];
 }>;
 
 const DEFAULT_X = 80; // px
@@ -42,6 +46,7 @@ export default async function Home({
   const x = clamp(Number(pickFirst(sp.x) ?? DEFAULT_X), 0, X_MAX);
   const y = clamp(Number(pickFirst(sp.y) ?? DEFAULT_Y), 20, Y_MAX);
   const yScale = y / 100;
+  const view: ViewMode = pickFirst(sp.view) === "list" ? "list" : "grid";
 
   const moveParam = pickFirst(sp.move);
   const moveStr =
@@ -68,6 +73,16 @@ export default async function Home({
         : 16 / 9;
     return { ...v, thumb: m?.thumbnail_url ?? null, aspect };
   });
+
+  // Order videos by walking the seeded grid columns row-by-row so the list
+  // view's order is deterministic from the same seed as the grid.
+  const seededOrder: number[] = [];
+  const maxLen = Math.max(...cols.map((c) => c.length));
+  for (let row = 0; row < maxLen; row++) {
+    for (const col of cols) {
+      if (col[row]) seededOrder.push(col[row].index);
+    }
+  }
 
   const renderCell = (copy: number) => (cell: Cell) => {
     const v = enriched[cell.index];
@@ -100,46 +115,64 @@ export default async function Home({
           __html: `:root { --layout-x: ${x}px; --layout-y: ${yScale}; }`,
         }}
       />
-      <SeedControls seed={seed} x={x} y={y} move={moveStr} />
+      <SmoothScroll infinite />
+      <ViewToggle view={view} />
+      {view === "grid" && <SeedControls seed={seed} x={x} y={y} move={moveStr} />}
       <ScrollIndicator />
 
       <nav
         className="pointer-events-auto fixed left-4 top-6 z-40 font-serif text-[24px] leading-[1.2] md:left-6 md:top-8 md:text-[26px] lg:left-10"
         aria-label="Primary"
       >
-        <p className="font-bold tracking-tight">Aurora Vey</p>
-        <ul>
+        <p className="font-bold tracking-tight">Aurora Leonard</p>
+        <ul className="mt-2 space-y-1">
           <li>
-            <a href="#work" className="hover:italic">
-              Work
-            </a>
-          </li>
-          <li>
-            <a href="#about" className="hover:italic">
+            <Link href="/about" className="hover:italic">
               About
-            </a>
-          </li>
-          <li>
-            <a href="#bts" className="hover:italic">
-              BTS
-            </a>
+            </Link>
           </li>
         </ul>
       </nav>
 
-      {COPIES.map((copy) => (
-        <section
-          key={`grid-${copy}`}
-          data-loop-section
-          aria-hidden={copy === 1 ? true : undefined}
-          className="grid grid-cols-1 px-4 pb-8 pt-8 md:grid-cols-3 md:px-6 lg:px-10"
-          style={{ columnGap: "var(--layout-x, 16px)" }}
-        >
-          <div className="flex flex-col">{cols[0].map(renderCell(copy))}</div>
-          <div className="flex flex-col">{cols[1].map(renderCell(copy))}</div>
-          <div className="flex flex-col">{cols[2].map(renderCell(copy))}</div>
-        </section>
-      ))}
+      {view === "grid"
+        ? COPIES.map((copy) => (
+            <section
+              key={`grid-${copy}`}
+              data-loop-section
+              aria-hidden={copy === 1 ? true : undefined}
+              className="grid grid-cols-1 px-4 pb-8 pt-8 md:grid-cols-3 md:px-6 lg:px-10"
+              style={{ columnGap: "var(--layout-x, 16px)" }}
+            >
+              <div className="flex flex-col">{cols[0].map(renderCell(copy))}</div>
+              <div className="flex flex-col">{cols[1].map(renderCell(copy))}</div>
+              <div className="flex flex-col">{cols[2].map(renderCell(copy))}</div>
+            </section>
+          ))
+        : COPIES.map((copy) => (
+            <section
+              key={`list-${copy}`}
+              data-loop-section
+              aria-hidden={copy === 1 ? true : undefined}
+              className="flex flex-col gap-y-8 py-8 pl-4 pr-4 md:gap-y-10 md:pl-[260px] md:pr-8 lg:pl-[300px]"
+            >
+              {seededOrder.map((idx) => {
+                const v = enriched[idx];
+                if (!v) return null;
+                return (
+                  <VideoCard
+                    key={`${seed}-${copy}-list-${idx}`}
+                    id={v.id}
+                    hash={v.hash}
+                    brand={v.brand}
+                    title={v.title}
+                    thumb={v.thumb}
+                    aspect={v.aspect}
+                    variant="list"
+                  />
+                );
+              })}
+            </section>
+          ))}
     </main>
   );
 }

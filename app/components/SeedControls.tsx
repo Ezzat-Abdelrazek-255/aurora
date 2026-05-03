@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { randomSeed } from "../lib/seed";
 
@@ -19,6 +19,7 @@ const setVars = (xPx: number, yPct: number) => {
 
 export function SeedControls({ seed, x, y, move }: Props) {
   const router = useRouter();
+  const currentParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState(seed);
@@ -44,7 +45,7 @@ export function SeedControls({ seed, x, y, move }: Props) {
     y?: number;
     move?: string;
   }) => {
-    const sp = new URLSearchParams();
+    const sp = new URLSearchParams(currentParams.toString());
     sp.set("seed", params.seed ?? seed);
     sp.set("x", String(params.x ?? localX));
     sp.set("y", String(params.y ?? localY));
@@ -77,7 +78,7 @@ export function SeedControls({ seed, x, y, move }: Props) {
 
   return (
     <div
-      className="fixed right-4 top-4 z-50 flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white/85 px-2 py-1.5 text-[12px] shadow-sm backdrop-blur"
+      className="fixed right-4 top-16 z-50 flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white/85 px-2 py-1.5 text-[12px] shadow-sm backdrop-blur"
       style={{ fontFamily: "var(--font-roslindale-text)" }}
     >
       <button

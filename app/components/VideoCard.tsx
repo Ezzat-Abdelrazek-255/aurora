@@ -10,6 +10,7 @@ type Props = {
   title: string;
   thumb: string | null;
   aspect: number;
+  variant?: "grid" | "list";
 };
 
 const REVERSE_RATE = 1; // 1× = real-time reverse
@@ -21,6 +22,7 @@ export function VideoCard({
   title,
   thumb,
   aspect,
+  variant = "grid",
 }: Props) {
   const openVideo = useOpenVideo();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -130,56 +132,90 @@ export function VideoCard({
     openVideo({ id, hash, title, brand, thumb });
   };
 
-  return (
-    <div className="group cursor-pointer select-none">
+  const preview = (
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden bg-neutral-200"
+      style={{ aspectRatio: aspect }}
+    >
+      {thumb && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={thumb}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          className="absolute inset-0 h-full w-full object-cover"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+        />
+      )}
+      {mounted && (
+        <video
+          ref={videoRef}
+          src={`/clips/${id}.mp4`}
+          muted
+          playsInline
+          preload="metadata"
+          disablePictureInPicture
+          controlsList="nodownload nofullscreen noremoteplayback"
+          onEnded={onEnded}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out ${
+            active ? "opacity-100" : "opacity-0"
+          }`}
+          onContextMenu={(e) => e.preventDefault()}
+          draggable={false}
+        />
+      )}
+    </div>
+  );
+
+  const handlers = {
+    onMouseEnter: onEnter,
+    onMouseLeave: onLeave,
+    onFocus: onEnter,
+    onBlur: onLeave,
+    onClick,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onClick();
+      }
+    },
+  };
+
+  if (variant === "list") {
+    return (
       <div
-        ref={containerRef}
-        className="relative w-full overflow-hidden bg-neutral-200"
-        style={{ aspectRatio: aspect }}
-        onMouseEnter={onEnter}
-        onMouseLeave={onLeave}
-        onFocus={onEnter}
-        onBlur={onLeave}
-        onClick={onClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onClick();
-          }
-        }}
+        {...handlers}
         role="button"
         tabIndex={0}
+        className="group flex cursor-pointer select-none items-start gap-6"
       >
-        {thumb && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={thumb}
-            alt=""
-            aria-hidden="true"
-            loading="eager"
-            className="absolute inset-0 h-full w-full object-cover"
-            draggable={false}
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        )}
-        {mounted && (
-          <video
-            ref={videoRef}
-            src={`/clips/${id}.mp4`}
-            muted
-            playsInline
-            preload="metadata"
-            disablePictureInPicture
-            controlsList="nodownload nofullscreen noremoteplayback"
-            onEnded={onEnded}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out ${
-              active ? "opacity-100" : "opacity-0"
-            }`}
-            onContextMenu={(e) => e.preventDefault()}
-            draggable={false}
-          />
-        )}
+        <div className="w-[280px] shrink-0 md:w-[340px]">{preview}</div>
+        <div className="min-w-0 pt-1">
+          <p
+            className="text-[11px] tracking-wide text-neutral-700"
+            style={{ fontFamily: "var(--font-roslindale-text)" }}
+          >
+            {brand}
+          </p>
+          <h3 className="font-serif mt-1 text-[24px] leading-[1.1] tracking-tight text-neutral-900 md:text-[28px]">
+            {title}
+          </h3>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div
+      {...handlers}
+      role="button"
+      tabIndex={0}
+      className="group cursor-pointer select-none"
+    >
+      {preview}
       <p
         className="mt-3 text-[11px] tracking-wide text-neutral-700"
         style={{ fontFamily: "var(--font-roslindale-text)" }}
