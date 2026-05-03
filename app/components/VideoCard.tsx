@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useOpenVideo } from "./ModalProvider";
 
 type Props = {
   id: string;
@@ -11,19 +12,28 @@ type Props = {
   aspect: number;
 };
 
-const VIMEO_ORIGIN = "https://player.vimeo.com";
+const LOOP_END = 2; // seconds — bounce window upper bound
+const REVERSE_RATE = 1; // 1× = real-time reverse
 
-export function VideoCard({ id, hash, brand, title, thumb, aspect }: Props) {
+export function VideoCard({
+  id,
+  hash,
+  brand,
+  title,
+  thumb,
+  aspect,
+}: Props) {
+  const openVideo = useOpenVideo();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const hasFramesRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const hoverRef = useRef(false);
-  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseRef = useRef<"forward" | "reverse" | "idle">("idle");
+  const reverseRafRef = useRef<number | null>(null);
+  const reverseStartMsRef = useRef(0);
+  const reverseStartTimeRef = useRef(0);
   const [mounted, setMounted] = useState(false);
-  const [hasFrames, setHasFrames] = useState(false);
 
-  // Mount the iframe well before the card scrolls into view so the first frame
-  // is captured ahead of any hover and the static poster only flashes briefly.
+  // Lazy-mount the <video> element so we don't ship 14 inline preloads at once.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -47,70 +57,82 @@ export function VideoCard({ id, hash, brand, title, thumb, aspect }: Props) {
     return () => obs.disconnect();
   }, []);
 
-  const send = useCallback((method: string, value?: unknown) => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win) return;
-    win.postMessage(JSON.stringify({ method, value }), VIMEO_ORIGIN);
-  }, []);
+  const cancelReverse = () => {
+    if (reverseRafRef.current !== null) {
+      cancelAnimationFrame(reverseRafRef.current);
+      reverseRafRef.current = null;
+    }
+  };
 
-  // Receive Vimeo player events. The first "timeupdate" tells us a real frame
-  // is on screen — that's our cue to capture it as the poster (then pause).
-  useEffect(() => {
-    if (!mounted) return;
-    const onMessage = (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) return;
-      let data: unknown = event.data;
-      if (typeof data === "string") {
-        try {
-          data = JSON.parse(data);
-        } catch {
-          return;
-        }
-      }
-      const evt =
-        data && typeof data === "object"
-          ? (data as { event?: string }).event
-          : undefined;
+  // Reverse phase: drive currentTime backward each frame. Local mp4s seek
+  // instantly so this is buttery on any modern device.
+  const startReverse = (fromTime: number) => {
+    cancelReverse();
+    phaseRef.current = "reverse";
+    reverseStartMsRef.current = performance.now();
+    reverseStartTimeRef.current = fromTime;
 
-      if (evt === "ready") {
-        send("addEventListener", "play");
-        send("addEventListener", "timeupdate");
+    const step = (now: number) => {
+      if (!hoverRef.current) {
+        reverseRafRef.current = null;
         return;
       }
-
-      if ((evt === "play" || evt === "timeupdate") && !hasFramesRef.current) {
-        hasFramesRef.current = true;
-        setHasFrames(true);
-        // Hold playback long enough to pass intro fades-from-black, then
-        // freeze on a meaningful frame unless the user is hovering.
-        if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-        pauseTimerRef.current = setTimeout(() => {
-          if (!hoverRef.current) send("pause");
-        }, 1500);
+      const v = videoRef.current;
+      if (!v) {
+        reverseRafRef.current = null;
+        return;
       }
+      const elapsed = (now - reverseStartMsRef.current) / 1000;
+      const t = reverseStartTimeRef.current - elapsed * REVERSE_RATE;
+
+      if (t <= 0) {
+        v.currentTime = 0;
+        phaseRef.current = "forward";
+        reverseRafRef.current = null;
+        v.play().catch(() => {});
+        return;
+      }
+      v.currentTime = t;
+      reverseRafRef.current = requestAnimationFrame(step);
     };
-    window.addEventListener("message", onMessage);
-    return () => {
-      window.removeEventListener("message", onMessage);
-      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    };
-  }, [mounted, send]);
+    reverseRafRef.current = requestAnimationFrame(step);
+  };
+
+  const onTimeUpdate = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (
+      hoverRef.current &&
+      phaseRef.current === "forward" &&
+      v.currentTime >= LOOP_END
+    ) {
+      v.pause();
+      startReverse(v.currentTime);
+    }
+  };
 
   const onEnter = () => {
     hoverRef.current = true;
-    if (pauseTimerRef.current) {
-      clearTimeout(pauseTimerRef.current);
-      pauseTimerRef.current = null;
-    }
-    if (mounted) send("play");
+    if (!mounted) return;
+    const v = videoRef.current;
+    if (!v) return;
+    cancelReverse();
+    phaseRef.current = "forward";
+    v.currentTime = 0;
+    v.play().catch(() => {});
   };
 
   const onLeave = () => {
     hoverRef.current = false;
-    if (mounted && hasFramesRef.current) send("pause");
+    cancelReverse();
+    phaseRef.current = "idle";
+    const v = videoRef.current;
+    if (v) v.pause();
   };
 
-  const src = `${VIMEO_ORIGIN}/video/${id}?h=${hash}&background=1&autoplay=1&loop=1&muted=1&autopause=0&dnt=1&playsinline=1&controls=0`;
+  const onClick = () => {
+    openVideo({ id, hash, title, brand });
+  };
 
   return (
     <div className="group cursor-pointer select-none">
@@ -122,6 +144,14 @@ export function VideoCard({ id, hash, brand, title, thumb, aspect }: Props) {
         onMouseLeave={onLeave}
         onFocus={onEnter}
         onBlur={onLeave}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        role="button"
         tabIndex={0}
       >
         {thumb && (
@@ -137,21 +167,18 @@ export function VideoCard({ id, hash, brand, title, thumb, aspect }: Props) {
           />
         )}
         {mounted && (
-          <iframe
-            ref={iframeRef}
-            src={src}
-            title={`${brand} — ${title}`}
-            allow="autoplay; fullscreen; picture-in-picture"
-            loading="lazy"
-            className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-500 ease-out ${
-              hasFrames ? "opacity-100" : "opacity-0"
-            }`}
-            style={{
-              transform: "scale(1.01)",
-              transformOrigin: "center",
-              pointerEvents: "none",
-              backgroundColor: "transparent",
-            }}
+          <video
+            ref={videoRef}
+            src={`/clips/${id}.mp4`}
+            muted
+            playsInline
+            preload="metadata"
+            disablePictureInPicture
+            controlsList="nodownload nofullscreen noremoteplayback"
+            onTimeUpdate={onTimeUpdate}
+            className="absolute inset-0 h-full w-full object-cover"
+            onContextMenu={(e) => e.preventDefault()}
+            draggable={false}
           />
         )}
       </div>

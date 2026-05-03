@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { ModalProvider } from "./components/ModalProvider";
 import { SmoothScroll } from "./components/SmoothScroll";
 import "./globals.css";
 import "lenis/dist/lenis.css";
@@ -41,7 +42,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full">
         <SmoothScroll />
-        {children}
+        <ModalProvider>{children}</ModalProvider>
         <div className="grain" aria-hidden="true" />
       </body>
     </html>
