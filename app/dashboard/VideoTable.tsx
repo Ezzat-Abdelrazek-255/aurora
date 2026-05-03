@@ -64,6 +64,12 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // dnd-kit's auto-generated aria-describedby IDs differ between SSR and the
+  // first client render (a known counter-based ID issue). Render a static
+  // version on first paint, then upgrade to the sortable version once we're
+  // safely on the client.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(
     null,
   );
@@ -283,65 +289,79 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
           {error}
         </p>
       )}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
-            {sorted.length === 0 && (
-              <li className="px-4 py-8 text-center text-[13px] text-neutral-500">
-                No videos yet. Add one above.
-              </li>
-            )}
-            {sorted.map((r) => (
-              <SortableRow
-                key={r.vimeo_id}
-                row={r}
-                isEditing={editingId === r.vimeo_id}
-                editingAny={editingId !== null}
-                draft={draft}
-                setDraft={setDraft}
-                rowBusy={busy[r.vimeo_id]}
-                onEdit={() => startEdit(r)}
-                onSave={saveEdit}
-                onCancel={cancelEdit}
-                onDelete={() => onDelete(r.vimeo_id, r.name)}
-                onRetry={() => onRetry(r.vimeo_id)}
-                onWatch={() =>
-                  openVideo({
-                    id: r.vimeo_id,
-                    hash: r.vimeo_hash,
-                    name: r.name,
-                    role: r.role,
-                    thumb: r.poster_url,
-                  })
-                }
-              />
-            ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
+      {mounted ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
+              {sorted.length === 0 && <EmptyRow />}
+              {sorted.map((r) => (
+                <SortableRow
+                  key={r.vimeo_id}
+                  row={r}
+                  isEditing={editingId === r.vimeo_id}
+                  editingAny={editingId !== null}
+                  draft={draft}
+                  setDraft={setDraft}
+                  rowBusy={busy[r.vimeo_id]}
+                  onEdit={() => startEdit(r)}
+                  onSave={saveEdit}
+                  onCancel={cancelEdit}
+                  onDelete={() => onDelete(r.vimeo_id, r.name)}
+                  onRetry={() => onRetry(r.vimeo_id)}
+                  onWatch={() =>
+                    openVideo({
+                      id: r.vimeo_id,
+                      hash: r.vimeo_hash,
+                      name: r.name,
+                      role: r.role,
+                      thumb: r.poster_url,
+                    })
+                  }
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
+          {sorted.length === 0 && <EmptyRow />}
+          {sorted.map((r) => (
+            <RowBody
+              key={r.vimeo_id}
+              row={r}
+              isEditing={false}
+              editingAny={editingId !== null}
+              draft={null}
+              setDraft={setDraft}
+              rowBusy={undefined}
+              onEdit={() => {}}
+              onSave={() => {}}
+              onCancel={() => {}}
+              onDelete={() => {}}
+              onRetry={() => {}}
+              onWatch={() => {}}
+            />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-function SortableRow({
-  row: r,
-  isEditing,
-  editingAny,
-  draft,
-  setDraft,
-  rowBusy,
-  onEdit,
-  onSave,
-  onCancel,
-  onDelete,
-  onRetry,
-  onWatch,
-}: {
+function EmptyRow() {
+  return (
+    <li className="px-4 py-8 text-center text-[13px] text-neutral-500">
+      No videos yet. Add one above.
+    </li>
+  );
+}
+
+type RowProps = {
   row: DashboardRow;
   isEditing: boolean;
   editingAny: boolean;
@@ -354,7 +374,9 @@ function SortableRow({
   onDelete: () => void;
   onRetry: () => void;
   onWatch: () => void;
-}) {
+};
+
+function SortableRow(props: RowProps) {
   const {
     attributes,
     listeners,
@@ -363,37 +385,71 @@ function SortableRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: r.vimeo_id, disabled: isEditing });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-  };
+  } = useSortable({ id: props.row.vimeo_id, disabled: props.isEditing });
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={`grid grid-cols-[24px_80px_1fr_auto_auto_auto] items-center gap-4 bg-white px-4 py-3 ${
-        isDragging
+    <RowBody
+      {...props}
+      dnd={{
+        liRef: setNodeRef,
+        liStyle: {
+          transform: CSS.Transform.toString(transform),
+          transition,
+          zIndex: isDragging ? 10 : undefined,
+        },
+        liExtraClass: isDragging
           ? "shadow-md ring-1 ring-inset ring-neutral-300"
-          : ""
+          : "",
+        handleRef: setActivatorNodeRef,
+        handleProps: { ...attributes, ...listeners },
+      }}
+    />
+  );
+}
+
+type DndSlots = {
+  liRef: (node: HTMLLIElement | null) => void;
+  liStyle: React.CSSProperties;
+  liExtraClass: string;
+  handleRef: (node: HTMLButtonElement | null) => void;
+  handleProps: Record<string, unknown>;
+};
+
+function RowBody({
+  row: r,
+  isEditing,
+  editingAny,
+  draft,
+  setDraft,
+  rowBusy,
+  onEdit,
+  onSave,
+  onCancel,
+  onDelete,
+  onRetry,
+  onWatch,
+  dnd,
+}: RowProps & { dnd?: DndSlots }) {
+  return (
+    <li
+      ref={dnd?.liRef}
+      style={dnd?.liStyle}
+      className={`grid grid-cols-[24px_80px_1fr_auto_auto_auto] items-center gap-4 bg-white px-4 py-3 ${
+        dnd?.liExtraClass ?? ""
       }`}
     >
       <button
-        ref={setActivatorNodeRef}
+        ref={dnd?.handleRef}
         type="button"
         aria-label="Drag to reorder"
-        title={isEditing ? undefined : "Drag to reorder"}
-        disabled={isEditing}
+        title={isEditing || !dnd ? undefined : "Drag to reorder"}
+        disabled={isEditing || !dnd}
         className={`flex h-6 w-6 select-none items-center justify-center bg-transparent text-neutral-400 ${
-          isEditing
+          isEditing || !dnd
             ? "opacity-30"
             : "cursor-grab hover:text-neutral-700 active:cursor-grabbing"
         }`}
-        {...attributes}
-        {...listeners}
+        {...(dnd?.handleProps ?? {})}
       >
         <svg
           width="14"
