@@ -67,7 +67,7 @@ export default async function DashboardPage() {
         <form action="/auth/sign-out" method="post">
           <button
             type="submit"
-            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-[12px] tracking-wide text-neutral-700 transition hover:border-neutral-900 hover:text-neutral-900"
+            className="cursor-pointer text-[11px] uppercase tracking-wide text-neutral-700 transition hover:text-neutral-900"
           >
             Sign out
           </button>

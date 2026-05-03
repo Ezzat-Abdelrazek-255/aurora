@@ -21,7 +21,7 @@ export type DashboardRow = {
 };
 
 type Draft = { name: string; category: Category; role: Role };
-type RowBusy = "delete" | "retry" | "edit" | "move" | undefined;
+type RowBusy = "delete" | "retry" | "edit" | undefined;
 
 const CATEGORIES: { value: Category; label: string }[] = [
   { value: "film-tv", label: "Film/TV" },
@@ -38,6 +38,8 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
 
   useEffect(() => {
@@ -183,57 +185,50 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
     cancelEdit();
   };
 
-  /** Swap with the row above or below in position order, then POST the two
-   *  affected rows' new positions. */
-  const move = async (id: string, dir: -1 | 1) => {
+  /** Move row `fromId` to the position currently occupied by `toId`,
+   *  shifting everything between them by one. Renumbers positions densely
+   *  (0..n-1) and POSTs the full new ordering in a single request. */
+  const moveTo = async (fromId: string, toId: string) => {
+    if (fromId === toId) return;
     const sorted = [...rows].sort((a, b) => a.position - b.position);
-    const idx = sorted.findIndex((r) => r.vimeo_id === id);
-    if (idx < 0) return;
-    const swapIdx = idx + dir;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const fromIdx = sorted.findIndex((r) => r.vimeo_id === fromId);
+    const toIdx = sorted.findIndex((r) => r.vimeo_id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
 
-    const a = sorted[idx];
-    const b = sorted[swapIdx];
+    const next = [...sorted];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
 
-    // Optimistic swap of position values
+    const positions = next.map((r, i) => ({
+      vimeo_id: r.vimeo_id,
+      position: i,
+    }));
+
+    // Optimistic local renumber
+    const posMap = new Map(positions.map((p) => [p.vimeo_id, p.position]));
+    const beforeSnapshot = new Map(rows.map((r) => [r.vimeo_id, r.position]));
     setRows((prev) =>
-      prev.map((r) =>
-        r.vimeo_id === a.vimeo_id
-          ? { ...r, position: b.position }
-          : r.vimeo_id === b.vimeo_id
-          ? { ...r, position: a.position }
-          : r,
-      ),
+      prev.map((r) => ({ ...r, position: posMap.get(r.vimeo_id) ?? r.position })),
     );
-
-    setRowBusy(a.vimeo_id, "move");
     setError(null);
+
     const res = await fetch("/api/videos/reorder", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        positions: [
-          { vimeo_id: a.vimeo_id, position: b.position },
-          { vimeo_id: b.vimeo_id, position: a.position },
-        ],
-      }),
+      body: JSON.stringify({ positions }),
     });
-    setRowBusy(a.vimeo_id, undefined);
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as
         | { error?: string; message?: string }
         | null;
       setError(`reorder: ${body?.message ?? body?.error ?? res.status}`);
-      // Revert optimistic update on failure — Realtime will eventually sync
-      // anyway, but be eager.
+      // Revert if the server didn't accept it; Realtime would also eventually
+      // re-sync, but be eager about it.
       setRows((prev) =>
-        prev.map((r) =>
-          r.vimeo_id === a.vimeo_id
-            ? { ...r, position: a.position }
-            : r.vimeo_id === b.vimeo_id
-            ? { ...r, position: b.position }
-            : r,
-        ),
+        prev.map((r) => ({
+          ...r,
+          position: beforeSnapshot.get(r.vimeo_id) ?? r.position,
+        })),
       );
     }
   };
@@ -259,24 +254,49 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
             No videos yet. Add one above.
           </li>
         )}
-        {sorted.map((r, i) => {
-          const isFirst = i === 0;
-          const isLast = i === sorted.length - 1;
+        {sorted.map((r) => {
           const isEditing = editingId === r.vimeo_id;
+          const isDragging = draggingId === r.vimeo_id;
+          const isDragTarget =
+            dragOverId === r.vimeo_id && draggingId !== null && !isDragging;
           return (
             <li
               key={r.vimeo_id}
-              className="grid grid-cols-[28px_80px_1fr_auto_auto_auto] items-center gap-4 px-4 py-3"
+              draggable={!isEditing}
+              onDragStart={(e) => {
+                setDraggingId(r.vimeo_id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", r.vimeo_id);
+              }}
+              onDragOver={(e) => {
+                if (!draggingId || draggingId === r.vimeo_id) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOverId !== r.vimeo_id) setDragOverId(r.vimeo_id);
+              }}
+              onDragLeave={() => {
+                if (dragOverId === r.vimeo_id) setDragOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = draggingId;
+                setDraggingId(null);
+                setDragOverId(null);
+                if (from && from !== r.vimeo_id) void moveTo(from, r.vimeo_id);
+              }}
+              onDragEnd={() => {
+                setDraggingId(null);
+                setDragOverId(null);
+              }}
+              className={`grid grid-cols-[24px_80px_1fr_auto_auto_auto] items-center gap-4 px-4 py-3 transition-colors ${
+                isDragging ? "opacity-40" : ""
+              } ${
+                isDragTarget
+                  ? "bg-neutral-50 ring-1 ring-inset ring-neutral-300"
+                  : ""
+              }`}
             >
-              <ReorderColumn
-                isFirst={isFirst}
-                isLast={isLast}
-                disabled={
-                  busy[r.vimeo_id] === "move" || editingId !== null
-                }
-                onUp={() => move(r.vimeo_id, -1)}
-                onDown={() => move(r.vimeo_id, 1)}
-              />
+              <DragHandle disabled={isEditing} />
               <div className="aspect-video w-[80px] overflow-hidden rounded-sm bg-neutral-100">
                 {r.poster_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -402,46 +422,26 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
   );
 }
 
-function ReorderColumn({
-  isFirst,
-  isLast,
-  disabled,
-  onUp,
-  onDown,
-}: {
-  isFirst: boolean;
-  isLast: boolean;
-  disabled: boolean;
-  onUp: () => void;
-  onDown: () => void;
-}) {
+function DragHandle({ disabled }: { disabled: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <button
-        type="button"
-        onClick={onUp}
-        disabled={isFirst || disabled}
-        title="Move up"
-        aria-label="Move up"
-        className="flex h-5 w-5 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 6.5L5 3.5L8 6.5" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        onClick={onDown}
-        disabled={isLast || disabled}
-        title="Move down"
-        aria-label="Move down"
-        className="flex h-5 w-5 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 3.5L5 6.5L8 3.5" />
-        </svg>
-      </button>
-    </div>
+    <span
+      aria-hidden="true"
+      title={disabled ? undefined : "Drag to reorder"}
+      className={`flex h-6 w-6 select-none items-center justify-center text-neutral-400 ${
+        disabled
+          ? "opacity-30"
+          : "cursor-grab hover:text-neutral-700 active:cursor-grabbing"
+      }`}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+        <circle cx="5" cy="3" r="1" />
+        <circle cx="9" cy="3" r="1" />
+        <circle cx="5" cy="7" r="1" />
+        <circle cx="9" cy="7" r="1" />
+        <circle cx="5" cy="11" r="1" />
+        <circle cx="9" cy="11" r="1" />
+      </svg>
+    </span>
   );
 }
 
@@ -526,7 +526,7 @@ function TextButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`whitespace-nowrap text-[11px] uppercase tracking-wide transition disabled:opacity-30 disabled:hover:text-current ${color}`}
+      className={`cursor-pointer whitespace-nowrap text-[11px] uppercase tracking-wide transition disabled:cursor-default disabled:opacity-30 disabled:hover:text-current ${color}`}
     >
       {children}
     </button>

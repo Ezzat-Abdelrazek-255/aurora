@@ -20,6 +20,12 @@ body {
   font-family: var(--font-roslindale-text), Georgia, serif;
 }
 
+a:hover,
+button:not(:disabled):hover,
+[role="button"]:not([aria-disabled="true"]):hover {
+  cursor: pointer;
+}
+
 html,
 body {
   scrollbar-width: none !important;

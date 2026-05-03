@@ -110,7 +110,7 @@ export function AddVideoForm() {
         <button
           type="submit"
           disabled={pending || !url.trim() || !name.trim()}
-          className="h-[38px] text-[12px] uppercase tracking-wider text-[#040d08] transition hover:opacity-60 disabled:opacity-30"
+          className="box-border inline-flex h-[38px] items-center justify-center rounded-md border border-[#040d08] bg-transparent px-5 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:bg-[#040d08]/5 disabled:opacity-30"
         >
           {pending ? "Adding…" : "Add"}
         </button>
@@ -128,10 +128,10 @@ export function AddVideoForm() {
 }
 
 const inputCls =
-  "h-[38px] w-full rounded-md border border-neutral-300 bg-white px-3 text-[13px] outline-none focus:border-[#040d08]";
+  "box-border block h-[38px] w-full rounded-md border border-neutral-300 bg-white px-3 text-[13px] leading-none outline-none focus:border-[#040d08]";
 
 const selectCls =
-  "h-[38px] w-full appearance-none rounded-md border border-neutral-300 bg-white pl-3 pr-8 text-[13px] outline-none focus:border-[#040d08]";
+  "box-border block h-[38px] w-full appearance-none rounded-md border border-neutral-300 bg-white pl-3 pr-8 text-[13px] leading-none outline-none focus:border-[#040d08]";
 
 function SelectShell({ children }: { children: React.ReactNode }) {
   return (

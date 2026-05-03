@@ -127,14 +127,17 @@ const readOrder = () =>
 const before = await readOrder();
 console.log("  order before:", before.slice(0, 4).join(", "), "…");
 
+// HTML5-native drag from row 0 onto row 1 (drops moves row 0 to row 1's slot
+// and shifts row 1 up, so the two visible front rows swap their identities).
 const firstRow = page.locator('ul > li[class*="grid-cols"]').first();
-await firstRow.locator('button[aria-label="Move down"]').click();
+const secondRow = page.locator('ul > li[class*="grid-cols"]').nth(1);
+await firstRow.dragTo(secondRow);
 await sleep(800);
 const after = await readOrder();
 console.log("  order after: ", after.slice(0, 4).join(", "), "…");
 
 const swapped = before[0] === after[1] && before[1] === after[0];
-console.log(`${swapped ? "✓" : "✗"} reorder swap by 1 verified`);
+console.log(`${swapped ? "✓" : "✗"} drag reorder verified`);
 
 // 6) Revert: rename back, swap back
 const renamed = page
@@ -151,8 +154,10 @@ await page
   .filter({ hasText: /^[^A-Za-z]*Audi[^A-Za-z(]/ })
   .waitFor({ timeout: 8000 });
 
-const movedRow = page.locator('ul > li[class*="grid-cols"]').nth(1);
-await movedRow.locator('button[aria-label="Move up"]').click();
+// Revert the drag — drag the (formerly first) row from index 1 back to index 0.
+const swappedRow = page.locator('ul > li[class*="grid-cols"]').nth(1);
+const topRow = page.locator('ul > li[class*="grid-cols"]').first();
+await swappedRow.dragTo(topRow);
 await sleep(500);
 console.log("✓ reverted name + position");
 

@@ -12,7 +12,7 @@ export function ViewToggle() {
 
   return (
     <div
-      className="fixed right-4 top-4 z-50 flex items-center rounded-full border border-neutral-200 bg-white/90 p-1 shadow-sm backdrop-blur"
+      className="fixed right-4 top-4 z-50 flex items-center p-1"
       style={{ gap: GAP_PX, fontFamily: "var(--font-roslindale-text)" }}
       role="group"
       aria-label="Layout view"
@@ -20,7 +20,7 @@ export function ViewToggle() {
       {/* Sliding active indicator */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-1 top-1 rounded-full bg-neutral-900"
+        className="pointer-events-none absolute left-1 top-1 rounded-[4px] bg-neutral-900"
         style={{
           width: BUTTON_PX,
           height: BUTTON_PX,

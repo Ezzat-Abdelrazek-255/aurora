@@ -201,7 +201,7 @@ export function VideoCard({
         {...handlers}
         role="button"
         tabIndex={0}
-        className="group flex cursor-pointer select-none flex-col items-stretch gap-3 transition-transform duration-300 ease-out hover:scale-[1.02] md:flex-row md:items-start md:gap-6"
+        className="group flex cursor-pointer select-none flex-col items-stretch gap-3 transition-transform duration-300 ease-out hover:scale-[1.05] md:flex-row md:items-start md:gap-6"
       >
         <div className="w-full shrink-0 md:w-[340px]">{preview}</div>
         <div className="min-w-0 pt-1">
@@ -221,7 +221,7 @@ export function VideoCard({
       {...handlers}
       role="button"
       tabIndex={0}
-      className="group cursor-pointer select-none transition-transform duration-300 ease-out hover:scale-[1.02]"
+      className="group cursor-pointer select-none transition-transform duration-300 ease-out hover:scale-[1.05]"
     >
       {preview}
       <h3 className="font-serif mt-3 text-[26px] leading-[1.05] tracking-tight text-[#040d08] transition-colors group-hover:text-emerald-600 md:text-[28px]">
