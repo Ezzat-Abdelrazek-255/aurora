@@ -69,8 +69,8 @@ export default async function Home({
     if (category !== "all" && v.category !== category) return false;
     if (
       queryLower &&
-      !v.title.toLowerCase().includes(queryLower) &&
-      !v.brand.toLowerCase().includes(queryLower)
+      !(v.title ?? "").toLowerCase().includes(queryLower) &&
+      !v.company.toLowerCase().includes(queryLower)
     ) {
       return false;
     }
@@ -130,8 +130,9 @@ export default async function Home({
         <VideoCard
           id={v.id}
           hash={v.hash}
-          brand={v.brand}
+          company={v.company}
           title={v.title}
+          role={v.role}
           thumb={v.thumb}
           aspect={v.aspect}
         />
@@ -174,8 +175,9 @@ export default async function Home({
                 key={`${seed}-${copy}-list-${idx}`}
                 id={v.id}
                 hash={v.hash}
-                brand={v.brand}
+                company={v.company}
                 title={v.title}
+                role={v.role}
                 thumb={v.thumb}
                 aspect={v.aspect}
                 variant="list"

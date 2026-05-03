@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 type ModalVideo = {
   id: string;
   hash: string;
-  title: string;
-  brand: string;
+  company: string;
+  title?: string;
+  role: "Producer" | "Talent";
   thumb?: string | null;
 };
 
@@ -42,6 +43,9 @@ export function VideoModal({ video, onClose }: Props) {
   if (!video) return null;
 
   const src = `https://player.vimeo.com/video/${video.id}?h=${video.hash}&autoplay=1&dnt=1&playsinline=1`;
+  const label = video.title
+    ? `${video.company} — ${video.title}`
+    : video.company;
 
   return (
     <div
@@ -49,7 +53,7 @@ export function VideoModal({ video, onClose }: Props) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={`${video.brand} — ${video.title}`}
+      aria-label={label}
     >
       <button
         type="button"
@@ -101,7 +105,7 @@ export function VideoModal({ video, onClose }: Props) {
           <iframe
             key={video.id}
             src={src}
-            title={`${video.brand} — ${video.title}`}
+            title={label}
             allow="autoplay; fullscreen; picture-in-picture"
             allowFullScreen
             onLoad={() => setIframeLoaded(true)}
@@ -115,10 +119,23 @@ export function VideoModal({ video, onClose }: Props) {
           className="pointer-events-none mt-6 text-white/90 md:mt-8"
           style={{ fontFamily: "var(--font-roslindale-text)" }}
         >
-          <p className="text-[11px] tracking-wide opacity-80">{video.brand}</p>
-          <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
-            {video.title}
-          </h2>
+          {video.title ? (
+            <p className="text-[11px] tracking-wide opacity-80">
+              {video.company}
+            </p>
+          ) : (
+            <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
+              {video.company}
+            </h2>
+          )}
+          {video.title && (
+            <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
+              {video.title}
+            </h2>
+          )}
+          <p className="mt-1 text-[11px] tracking-wide opacity-80">
+            {video.role}
+          </p>
         </div>
       </div>
     </div>

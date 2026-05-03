@@ -6,8 +6,9 @@ import { VideoModal } from "./VideoModal";
 type ModalVideo = {
   id: string;
   hash: string;
-  title: string;
-  brand: string;
+  company: string;
+  title?: string;
+  role: "Producer" | "Talent";
   thumb?: string | null;
 };
 
