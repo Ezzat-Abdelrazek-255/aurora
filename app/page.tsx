@@ -138,20 +138,27 @@ export default async function Home({
           aria-hidden={copy === 1 ? true : undefined}
           className="flex flex-col gap-y-8 py-8 pl-4 pr-4 md:gap-y-10 md:pl-[260px] md:pr-8 lg:pl-[300px]"
         >
-          {seededOrder.map((idx) => {
+          {seededOrder.map((idx, i) => {
             const v = enriched[idx];
             if (!v) return null;
+            // Cap stagger at ~12 rows so the cascade stays under ~600ms.
+            const delayMs = Math.min(i, 12) * 50;
             return (
-              <VideoCard
+              <div
                 key={`${seed}-${copy}-list-${idx}`}
-                id={v.id}
-                hash={v.hash}
-                brand={v.brand}
-                title={v.title}
-                thumb={v.thumb}
-                aspect={v.aspect}
-                variant="list"
-              />
+                className="list-row-enter"
+                style={{ animationDelay: `${delayMs}ms` }}
+              >
+                <VideoCard
+                  id={v.id}
+                  hash={v.hash}
+                  brand={v.brand}
+                  title={v.title}
+                  thumb={v.thumb}
+                  aspect={v.aspect}
+                  variant="list"
+                />
+              </div>
             );
           })}
         </section>
@@ -160,7 +167,7 @@ export default async function Home({
   );
 
   return (
-    <main className="relative bg-white text-neutral-900">
+    <main className="relative bg-white text-[#040d08]">
       <style
         dangerouslySetInnerHTML={{
           __html: `:root { --layout-x: ${x}px; --layout-y: ${yScale}; }`,
@@ -182,7 +189,10 @@ export default async function Home({
           <p className="font-bold tracking-tight">Aurora Leonard</p>
           <ul className="mt-2 space-y-1">
             <li>
-              <Link href="/about" className="hover:italic">
+              <Link
+                href="/about"
+                className="transition-colors hover:italic hover:text-emerald-600"
+              >
                 About
               </Link>
             </li>

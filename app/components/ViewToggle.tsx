@@ -1,5 +1,6 @@
 "use client";
 
+import { LayoutGrid, List } from "lucide-react";
 import { useView } from "./ViewProvider";
 
 const BUTTON_PX = 32;
@@ -19,11 +20,12 @@ export function ViewToggle() {
       {/* Sliding active indicator */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-1 top-1 rounded-full bg-neutral-900 transition-transform duration-300 ease-out"
+        className="pointer-events-none absolute left-1 top-1 rounded-full bg-neutral-900"
         style={{
           width: BUTTON_PX,
           height: BUTTON_PX,
           transform: `translateX(${isList ? BUTTON_PX + GAP_PX : 0}px)`,
+          transition: "transform 0.5s var(--ease-primary)",
         }}
       />
 
@@ -32,12 +34,16 @@ export function ViewToggle() {
         onClick={() => setView("grid")}
         aria-pressed={!isList}
         title="Grid view"
-        className={`relative z-10 flex items-center justify-center rounded-full transition-colors duration-200 ${
+        className={`relative z-10 flex items-center justify-center rounded-full ${
           !isList ? "text-white" : "text-neutral-500 hover:text-neutral-900"
         }`}
-        style={{ width: BUTTON_PX, height: BUTTON_PX }}
+        style={{
+          width: BUTTON_PX,
+          height: BUTTON_PX,
+          transition: "color 0.3s var(--ease-primary)",
+        }}
       >
-        <GridIcon />
+        <LayoutGrid size={15} strokeWidth={2} aria-hidden="true" />
       </button>
 
       <button
@@ -45,58 +51,17 @@ export function ViewToggle() {
         onClick={() => setView("list")}
         aria-pressed={isList}
         title="List view"
-        className={`relative z-10 flex items-center justify-center rounded-full transition-colors duration-200 ${
+        className={`relative z-10 flex items-center justify-center rounded-full ${
           isList ? "text-white" : "text-neutral-500 hover:text-neutral-900"
         }`}
-        style={{ width: BUTTON_PX, height: BUTTON_PX }}
+        style={{
+          width: BUTTON_PX,
+          height: BUTTON_PX,
+          transition: "color 0.3s var(--ease-primary)",
+        }}
       >
-        <ListIcon />
+        <List size={15} strokeWidth={2} aria-hidden="true" />
       </button>
     </div>
-  );
-}
-
-function GridIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="3" width="7.5" height="7.5" rx="1" />
-      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1" />
-      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1" />
-      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1" />
-    </svg>
-  );
-}
-
-function ListIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {/* Three rows: a small thumbnail rect on the left, a line to its right */}
-      <rect x="3" y="4.5" width="6" height="4" rx="0.8" />
-      <line x1="11" y1="6.5" x2="21" y2="6.5" />
-      <rect x="3" y="10" width="6" height="4" rx="0.8" />
-      <line x1="11" y1="12" x2="21" y2="12" />
-      <rect x="3" y="15.5" width="6" height="4" rx="0.8" />
-      <line x1="11" y1="17.5" x2="21" y2="17.5" />
-    </svg>
   );
 }

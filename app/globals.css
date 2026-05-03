@@ -2,7 +2,9 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #111111;
+  --foreground: #040d08;
+  /* Borrowed from billix — primary easing curve used across the app. */
+  --ease-primary: cubic-bezier(0.625, 0.05, 0, 1);
 }
 
 @theme inline {
@@ -63,4 +65,28 @@ body::-webkit-scrollbar-thumb,
   70%      { transform: translate(0, 15%); }
   80%      { transform: translate(3%, 35%); }
   90%      { transform: translate(-10%, 10%); }
+}
+
+/* List-view entrance — each row rises and fades in. Stagger is set per row
+   via inline animation-delay so the cascade reads top-to-bottom on view in. */
+@keyframes list-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.list-row-enter {
+  animation: list-row-in 0.7s var(--ease-primary) both;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list-row-enter {
+    animation: none;
+  }
 }
