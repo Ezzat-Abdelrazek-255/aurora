@@ -67,11 +67,7 @@ export default async function Home({
 
   const filteredVideos = videos.filter((v) => {
     if (category !== "all" && v.category !== category) return false;
-    if (
-      queryLower &&
-      !(v.title ?? "").toLowerCase().includes(queryLower) &&
-      !v.company.toLowerCase().includes(queryLower)
-    ) {
+    if (queryLower && !v.name.toLowerCase().includes(queryLower)) {
       return false;
     }
     return true;
@@ -130,8 +126,7 @@ export default async function Home({
         <VideoCard
           id={v.id}
           hash={v.hash}
-          company={v.company}
-          title={v.title}
+          name={v.name}
           role={v.role}
           thumb={v.thumb}
           aspect={v.aspect}
@@ -175,8 +170,7 @@ export default async function Home({
                 key={`${seed}-${copy}-list-${idx}`}
                 id={v.id}
                 hash={v.hash}
-                company={v.company}
-                title={v.title}
+                name={v.name}
                 role={v.role}
                 thumb={v.thumb}
                 aspect={v.aspect}

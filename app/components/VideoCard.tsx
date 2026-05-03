@@ -6,9 +6,7 @@ import { useOpenVideo } from "./ModalProvider";
 type Props = {
   id: string;
   hash: string;
-  company: string;
-  /** Network/show title. Omitted for commercials → 2-line layout. */
-  title?: string;
+  name: string;
   role: "Producer" | "Talent";
   thumb: string | null;
   aspect: number;
@@ -20,8 +18,7 @@ const REVERSE_RATE = 1; // 1× = real-time reverse
 export function VideoCard({
   id,
   hash,
-  company,
-  title,
+  name,
   role,
   thumb,
   aspect,
@@ -135,14 +132,7 @@ export function VideoCard({
   const onClick = () => {
     // Pass the local first-frame poster so the modal placeholder matches the
     // card while the Vimeo iframe is loading.
-    openVideo({
-      id,
-      hash,
-      company,
-      title,
-      role,
-      thumb: `/clips/${id}.jpg`,
-    });
+    openVideo({ id, hash, name, role, thumb: `/clips/${id}.jpg` });
   };
 
   // Local first-frame JPG (extracted from the clip itself, not Vimeo's
@@ -202,32 +192,6 @@ export function VideoCard({
 
   const captionFont = { fontFamily: "var(--font-roslindale-text)" };
   const labelClass = "text-[11px] tracking-wide text-[#0a1f15]";
-  const headlineClassGrid =
-    "font-serif mt-1 text-[26px] leading-[1.05] tracking-tight text-[#040d08] md:text-[28px]";
-  const headlineClassList =
-    "font-serif mt-1 text-[24px] leading-[1.1] tracking-tight text-[#040d08] md:text-[28px]";
-
-  /**
-   * Caption layout rule: whichever line is the "name of the thing" gets
-   * promoted to the big serif headline, the others stay as small caption text.
-   *   - With title (productions): company (small) / title (big) / role (small)
-   *   - Without title (commercials): company (big) / role (small)
-   */
-  const renderCaption = (headlineClass: string) => (
-    <>
-      {title ? (
-        <p className={labelClass} style={captionFont}>
-          {company}
-        </p>
-      ) : (
-        <h3 className={headlineClass}>{company}</h3>
-      )}
-      {title && <h3 className={headlineClass}>{title}</h3>}
-      <p className={`mt-1 ${labelClass}`} style={captionFont}>
-        {role}
-      </p>
-    </>
-  );
 
   if (variant === "list") {
     return (
@@ -238,7 +202,14 @@ export function VideoCard({
         className="group flex cursor-pointer select-none items-start gap-6"
       >
         <div className="w-[280px] shrink-0 md:w-[340px]">{preview}</div>
-        <div className="min-w-0 pt-1">{renderCaption(headlineClassList)}</div>
+        <div className="min-w-0 pt-1">
+          <h3 className="font-serif text-[24px] leading-[1.1] tracking-tight text-[#040d08] md:text-[28px]">
+            {name}
+          </h3>
+          <p className={`mt-1 ${labelClass}`} style={captionFont}>
+            {role}
+          </p>
+        </div>
       </div>
     );
   }
@@ -251,7 +222,12 @@ export function VideoCard({
       className="group cursor-pointer select-none"
     >
       {preview}
-      <div className="mt-3">{renderCaption(headlineClassGrid)}</div>
+      <h3 className="font-serif mt-3 text-[26px] leading-[1.05] tracking-tight text-[#040d08] md:text-[28px]">
+        {name}
+      </h3>
+      <p className={`mt-1 ${labelClass}`} style={captionFont}>
+        {role}
+      </p>
     </div>
   );
 }

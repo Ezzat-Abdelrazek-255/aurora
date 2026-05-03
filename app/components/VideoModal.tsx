@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 type ModalVideo = {
   id: string;
   hash: string;
-  company: string;
-  title?: string;
+  name: string;
   role: "Producer" | "Talent";
   thumb?: string | null;
 };
@@ -43,9 +42,7 @@ export function VideoModal({ video, onClose }: Props) {
   if (!video) return null;
 
   const src = `https://player.vimeo.com/video/${video.id}?h=${video.hash}&autoplay=1&dnt=1&playsinline=1`;
-  const label = video.title
-    ? `${video.company} — ${video.title}`
-    : video.company;
+  const label = video.name;
 
   return (
     <div
@@ -119,20 +116,9 @@ export function VideoModal({ video, onClose }: Props) {
           className="pointer-events-none mt-6 text-white/90 md:mt-8"
           style={{ fontFamily: "var(--font-roslindale-text)" }}
         >
-          {video.title ? (
-            <p className="text-[11px] tracking-wide opacity-80">
-              {video.company}
-            </p>
-          ) : (
-            <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
-              {video.company}
-            </h2>
-          )}
-          {video.title && (
-            <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
-              {video.title}
-            </h2>
-          )}
+          <h2 className="font-serif text-[18px] leading-tight md:text-[22px]">
+            {video.name}
+          </h2>
           <p className="mt-1 text-[11px] tracking-wide opacity-80">
             {video.role}
           </p>
