@@ -71,7 +71,7 @@ body::-webkit-scrollbar-thumb,
    below its final position. No opacity; pure transform. */
 @keyframes list-shell-in {
   from {
-    transform: translateY(120px);
+    transform: translateY(100vh);
   }
   to {
     transform: translateY(0);
@@ -79,7 +79,7 @@ body::-webkit-scrollbar-thumb,
 }
 
 .list-shell-enter {
-  animation: list-shell-in 0.85s var(--ease-primary) both;
+  animation: list-shell-in 1s var(--ease-primary) both;
   will-change: transform;
 }
 
