@@ -110,7 +110,7 @@ export function AddVideoForm() {
         <button
           type="submit"
           disabled={pending || !url.trim() || !name.trim()}
-          className="box-border inline-flex h-[38px] items-center justify-center rounded-md border border-[#040d08] bg-transparent px-5 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:bg-[#040d08]/5 disabled:opacity-30"
+          className="box-border inline-flex h-[38px] items-center justify-center px-3 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:opacity-60 disabled:opacity-30"
         >
           {pending ? "Adding…" : "Add"}
         </button>
