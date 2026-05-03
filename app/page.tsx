@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { FilterBar } from "./components/FilterBar";
 import { FilteredCell } from "./components/FilteredCell";
 import { FilterProvider } from "./components/FilterProvider";
+import { JsonLd } from "./components/JsonLd";
 import { ScrollIndicator } from "./components/ScrollIndicator";
 import { SeedControls } from "./components/SeedControls";
 import { SmoothScroll } from "./components/SmoothScroll";
@@ -11,7 +13,20 @@ import { OnlyGridView, ViewSwitcher } from "./components/ViewSwitcher";
 import { ViewToggle } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
 import { DEFAULT_SEED } from "./lib/seed";
+import { SITE } from "./lib/site";
 import { listReadyVideos, type Category } from "./lib/videos";
+
+export const metadata: Metadata = {
+  title: { absolute: SITE.title },
+  description: SITE.description,
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: SITE.title,
+    description: SITE.description,
+    url: "/",
+    type: "website",
+  },
+};
 
 const alignClass: Record<Cell["align"], string> = {
   start: "self-start",
@@ -173,13 +188,50 @@ export default async function Home({
     </div>
   );
 
+  const personJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: SITE.name,
+    url: SITE.url,
+    jobTitle: "Filmmaker & Producer",
+    description: SITE.description,
+    worksFor: {
+      "@type": "Organization",
+      name: "Reforest Films",
+      url: "https://www.reforestfilms.com/",
+    },
+    sameAs: [
+      "https://www.instagram.com/auroraleonard/",
+      "https://www.linkedin.com/in/aurora-leonard/",
+      "https://www.facebook.com/AuroraLeonardReforestFilms/",
+    ],
+  };
+
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE.name,
+    url: SITE.url,
+    inLanguage: "en",
+    publisher: {
+      "@type": "Person",
+      name: SITE.name,
+    },
+  };
+
   return (
     <main className="relative bg-white text-[#040d08]">
+      <JsonLd id="ld-person" data={personJsonLd} />
+      <JsonLd id="ld-website" data={websiteJsonLd} />
       <style
         dangerouslySetInnerHTML={{
           __html: `:root { --layout-x: ${x}px; --layout-y: ${yScale}; }`,
         }}
       />
+
+      <h1 className="sr-only">
+        {SITE.name} — Filmmaker &amp; Producer · Selected Work
+      </h1>
 
       <FilterProvider
         initial={{ category: initialCategory, query: initialQuery }}

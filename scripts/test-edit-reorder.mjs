@@ -127,11 +127,29 @@ const readOrder = () =>
 const before = await readOrder();
 console.log("  order before:", before.slice(0, 4).join(", "), "…");
 
-// HTML5-native drag from row 0 onto row 1 (drops moves row 0 to row 1's slot
-// and shifts row 1 up, so the two visible front rows swap their identities).
-const firstRow = page.locator('ul > li[class*="grid-cols"]').first();
+// dnd-kit uses pointer events; Playwright dispatches mouse events too, which
+// the MouseSensor picks up. Drive it manually: hover the handle, mousedown,
+// move past activation distance in many small steps, then to the target row.
+const firstHandle = page
+  .locator('ul > li[class*="grid-cols"]')
+  .first()
+  .locator('button[aria-label="Drag to reorder"]');
 const secondRow = page.locator('ul > li[class*="grid-cols"]').nth(1);
-await firstRow.dragTo(secondRow);
+
+await firstHandle.hover();
+await page.mouse.down();
+await sleep(50);
+const tb = await secondRow.boundingBox();
+if (!tb) {
+  console.error("missing bounding box");
+  process.exit(1);
+}
+// Use many small steps so each intermediate move fires a real mousemove.
+await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * 0.75, {
+  steps: 25,
+});
+await sleep(100);
+await page.mouse.up();
 await sleep(800);
 const after = await readOrder();
 console.log("  order after: ", after.slice(0, 4).join(", "), "…");
@@ -154,11 +172,26 @@ await page
   .filter({ hasText: /^[^A-Za-z]*Audi[^A-Za-z(]/ })
   .waitFor({ timeout: 8000 });
 
-// Revert the drag — drag the (formerly first) row from index 1 back to index 0.
-const swappedRow = page.locator('ul > li[class*="grid-cols"]').nth(1);
-const topRow = page.locator('ul > li[class*="grid-cols"]').first();
-await swappedRow.dragTo(topRow);
-await sleep(500);
+// Revert: drag the (formerly first) row from index 1 back to index 0.
+if (swapped) {
+  const swappedHandle = page
+    .locator('ul > li[class*="grid-cols"]')
+    .nth(1)
+    .locator('button[aria-label="Drag to reorder"]');
+  const topRow = page.locator('ul > li[class*="grid-cols"]').first();
+  await swappedHandle.hover();
+  await page.mouse.down();
+  await sleep(50);
+  const ub = await topRow.boundingBox();
+  if (ub) {
+    await page.mouse.move(ub.x + ub.width / 2, ub.y + ub.height * 0.25, {
+      steps: 25,
+    });
+    await sleep(100);
+    await page.mouse.up();
+    await sleep(500);
+  }
+}
 console.log("✓ reverted name + position");
 
 await browser.close();

@@ -1,6 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+import { useOpenVideo } from "../components/ModalProvider";
 import { createSupabaseBrowserClient } from "../lib/supabase/client";
 
 type Status = "pending" | "processing" | "ready" | "failed";
@@ -33,14 +58,31 @@ const ROLES: Role[] = ["Producer", "Talent"];
 const STORAGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/clips/`;
 
 export function VideoTable({ initial }: { initial: DashboardRow[] }) {
+  const openVideo = useOpenVideo();
   const [rows, setRows] = useState<DashboardRow[]>(initial);
   const [busy, setBusy] = useState<Record<string, RowBusy>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
+  const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(
+    null,
+  );
+
+  // dnd-kit sensors. 5px activation distance so buttons inside the row still
+  // register clicks — drag only kicks in once the pointer has travelled.
+  // PointerSensor for modern browsers, MouseSensor as a fallback for Playwright
+  // (which dispatches mouse events, not pointer events), TouchSensor for
+  // mobile, KeyboardSensor for accessibility.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     setRows(initial);
@@ -178,35 +220,29 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
       setError(`edit: ${body?.message ?? body?.error ?? res.status}`);
       return;
     }
-    // Optimistic local update — Realtime will confirm.
     setRows((prev) =>
       prev.map((r) => (r.vimeo_id === editingId ? { ...r, ...patch } : r)),
     );
     cancelEdit();
   };
 
-  /** Move row `fromId` to the position currently occupied by `toId`,
-   *  shifting everything between them by one. Renumbers positions densely
-   *  (0..n-1) and POSTs the full new ordering in a single request. */
-  const moveTo = async (fromId: string, toId: string) => {
-    if (fromId === toId) return;
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
     const sorted = [...rows].sort((a, b) => a.position - b.position);
-    const fromIdx = sorted.findIndex((r) => r.vimeo_id === fromId);
-    const toIdx = sorted.findIndex((r) => r.vimeo_id === toId);
-    if (fromIdx < 0 || toIdx < 0) return;
+    const oldIdx = sorted.findIndex((r) => r.vimeo_id === active.id);
+    const newIdx = sorted.findIndex((r) => r.vimeo_id === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
 
-    const next = [...sorted];
-    const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
-
+    const next = arrayMove(sorted, oldIdx, newIdx);
     const positions = next.map((r, i) => ({
       vimeo_id: r.vimeo_id,
       position: i,
     }));
 
-    // Optimistic local renumber
-    const posMap = new Map(positions.map((p) => [p.vimeo_id, p.position]));
     const beforeSnapshot = new Map(rows.map((r) => [r.vimeo_id, r.position]));
+    const posMap = new Map(positions.map((p) => [p.vimeo_id, p.position]));
     setRows((prev) =>
       prev.map((r) => ({ ...r, position: posMap.get(r.vimeo_id) ?? r.position })),
     );
@@ -222,8 +258,6 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
         | { error?: string; message?: string }
         | null;
       setError(`reorder: ${body?.message ?? body?.error ?? res.status}`);
-      // Revert if the server didn't accept it; Realtime would also eventually
-      // re-sync, but be eager about it.
       setRows((prev) =>
         prev.map((r) => ({
           ...r,
@@ -237,6 +271,7 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
     () => [...rows].sort((a, b) => a.position - b.position),
     [rows],
   );
+  const ids = useMemo(() => sorted.map((r) => r.vimeo_id), [sorted]);
 
   return (
     <div className="mt-4">
@@ -248,219 +283,263 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
           {error}
         </p>
       )}
-      <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
-        {sorted.length === 0 && (
-          <li className="px-4 py-8 text-center text-[13px] text-neutral-500">
-            No videos yet. Add one above.
-          </li>
-        )}
-        {sorted.map((r) => {
-          const isEditing = editingId === r.vimeo_id;
-          const isDragging = draggingId === r.vimeo_id;
-          const isDragTarget =
-            dragOverId === r.vimeo_id && draggingId !== null && !isDragging;
-          return (
-            <li
-              key={r.vimeo_id}
-              draggable={!isEditing}
-              onDragStart={(e) => {
-                setDraggingId(r.vimeo_id);
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", r.vimeo_id);
-              }}
-              onDragOver={(e) => {
-                if (!draggingId || draggingId === r.vimeo_id) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                if (dragOverId !== r.vimeo_id) setDragOverId(r.vimeo_id);
-              }}
-              onDragLeave={() => {
-                if (dragOverId === r.vimeo_id) setDragOverId(null);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const from = draggingId;
-                setDraggingId(null);
-                setDragOverId(null);
-                if (from && from !== r.vimeo_id) void moveTo(from, r.vimeo_id);
-              }}
-              onDragEnd={() => {
-                setDraggingId(null);
-                setDragOverId(null);
-              }}
-              className={`grid grid-cols-[24px_80px_1fr_auto_auto_auto] items-center gap-4 px-4 py-3 transition-colors ${
-                isDragging ? "opacity-40" : ""
-              } ${
-                isDragTarget
-                  ? "bg-neutral-50 ring-1 ring-inset ring-neutral-300"
-                  : ""
-              }`}
-            >
-              <DragHandle disabled={isEditing} />
-              <div className="aspect-video w-[80px] overflow-hidden rounded-sm bg-neutral-100">
-                {r.poster_url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={r.poster_url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : null}
-              </div>
-              <div className="min-w-0">
-                {isEditing && draft ? (
-                  <input
-                    type="text"
-                    value={draft.name}
-                    onChange={(e) =>
-                      setDraft({ ...draft, name: e.target.value })
-                    }
-                    autoFocus
-                    className="w-full rounded-md border border-neutral-300 bg-white px-2 py-1 font-serif text-[16px] outline-none focus:border-[#040d08]"
-                    style={{ fontFamily: "var(--font-roslindale-display)" }}
-                  />
-                ) : (
-                  <div
-                    className="font-serif text-[16px] leading-tight tracking-tight"
-                    style={{ fontFamily: "var(--font-roslindale-display)" }}
-                  >
-                    {r.name}
-                  </div>
-                )}
-                <div className="mt-0.5 text-[11px] text-neutral-500">
-                  {r.vimeo_id}
-                </div>
-                {r.error_message && (
-                  <div className="mt-1 truncate text-[11px] text-red-600">
-                    {r.error_message}
-                  </div>
-                )}
-              </div>
-              <div className="text-[11px] uppercase tracking-wide text-neutral-600">
-                {isEditing && draft ? (
-                  <div className="flex items-center gap-2">
-                    <SelectShell>
-                      <select
-                        value={draft.category}
-                        onChange={(e) =>
-                          setDraft({ ...draft, category: e.target.value as Category })
-                        }
-                        className={editSelectCls}
-                      >
-                        {CATEGORIES.map((c) => (
-                          <option key={c.value} value={c.value}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </SelectShell>
-                    <SelectShell>
-                      <select
-                        value={draft.role}
-                        onChange={(e) =>
-                          setDraft({ ...draft, role: e.target.value as Role })
-                        }
-                        className={editSelectCls}
-                      >
-                        {ROLES.map((rr) => (
-                          <option key={rr} value={rr}>
-                            {rr}
-                          </option>
-                        ))}
-                      </select>
-                    </SelectShell>
-                  </div>
-                ) : (
-                  <span className="whitespace-nowrap">
-                    {r.category} · {r.role}
-                  </span>
-                )}
-              </div>
-              <StatusPill status={r.status} />
-              <div className="flex items-center gap-3 text-[11px] uppercase tracking-wide">
-                {isEditing ? (
-                  <>
-                    <TextButton
-                      onClick={saveEdit}
-                      disabled={busy[r.vimeo_id] === "edit"}
-                    >
-                      {busy[r.vimeo_id] === "edit" ? "Saving…" : "Save"}
-                    </TextButton>
-                    <TextButton onClick={cancelEdit}>Cancel</TextButton>
-                  </>
-                ) : (
-                  <>
-                    <TextButton
-                      onClick={() => startEdit(r)}
-                      disabled={editingId !== null}
-                    >
-                      Edit
-                    </TextButton>
-                    {r.status === "failed" && (
-                      <TextButton
-                        onClick={() => onRetry(r.vimeo_id)}
-                        disabled={busy[r.vimeo_id] === "retry"}
-                      >
-                        {busy[r.vimeo_id] === "retry" ? "Retrying…" : "Retry"}
-                      </TextButton>
-                    )}
-                    <TextButton
-                      onClick={() => onDelete(r.vimeo_id, r.name)}
-                      disabled={busy[r.vimeo_id] === "delete"}
-                      tone="danger"
-                    >
-                      {busy[r.vimeo_id] === "delete" ? "Deleting…" : "Delete"}
-                    </TextButton>
-                  </>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
+            {sorted.length === 0 && (
+              <li className="px-4 py-8 text-center text-[13px] text-neutral-500">
+                No videos yet. Add one above.
+              </li>
+            )}
+            {sorted.map((r) => (
+              <SortableRow
+                key={r.vimeo_id}
+                row={r}
+                isEditing={editingId === r.vimeo_id}
+                editingAny={editingId !== null}
+                draft={draft}
+                setDraft={setDraft}
+                rowBusy={busy[r.vimeo_id]}
+                onEdit={() => startEdit(r)}
+                onSave={saveEdit}
+                onCancel={cancelEdit}
+                onDelete={() => onDelete(r.vimeo_id, r.name)}
+                onRetry={() => onRetry(r.vimeo_id)}
+                onWatch={() =>
+                  openVideo({
+                    id: r.vimeo_id,
+                    hash: r.vimeo_hash,
+                    name: r.name,
+                    role: r.role,
+                    thumb: r.poster_url,
+                  })
+                }
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
 
-function DragHandle({ disabled }: { disabled: boolean }) {
+function SortableRow({
+  row: r,
+  isEditing,
+  editingAny,
+  draft,
+  setDraft,
+  rowBusy,
+  onEdit,
+  onSave,
+  onCancel,
+  onDelete,
+  onRetry,
+  onWatch,
+}: {
+  row: DashboardRow;
+  isEditing: boolean;
+  editingAny: boolean;
+  draft: Draft | null;
+  setDraft: (d: Draft) => void;
+  rowBusy: RowBusy;
+  onEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+  onRetry: () => void;
+  onWatch: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: r.vimeo_id, disabled: isEditing });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
   return (
-    <span
-      aria-hidden="true"
-      title={disabled ? undefined : "Drag to reorder"}
-      className={`flex h-6 w-6 select-none items-center justify-center text-neutral-400 ${
-        disabled
-          ? "opacity-30"
-          : "cursor-grab hover:text-neutral-700 active:cursor-grabbing"
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`grid grid-cols-[24px_80px_1fr_auto_auto_auto] items-center gap-4 bg-white px-4 py-3 ${
+        isDragging
+          ? "shadow-md ring-1 ring-inset ring-neutral-300"
+          : ""
       }`}
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-        <circle cx="5" cy="3" r="1" />
-        <circle cx="9" cy="3" r="1" />
-        <circle cx="5" cy="7" r="1" />
-        <circle cx="9" cy="7" r="1" />
-        <circle cx="5" cy="11" r="1" />
-        <circle cx="9" cy="11" r="1" />
-      </svg>
-    </span>
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        aria-label="Drag to reorder"
+        title={isEditing ? undefined : "Drag to reorder"}
+        disabled={isEditing}
+        className={`flex h-6 w-6 select-none items-center justify-center bg-transparent text-neutral-400 ${
+          isEditing
+            ? "opacity-30"
+            : "cursor-grab hover:text-neutral-700 active:cursor-grabbing"
+        }`}
+        {...attributes}
+        {...listeners}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <circle cx="5" cy="3" r="1" />
+          <circle cx="9" cy="3" r="1" />
+          <circle cx="5" cy="7" r="1" />
+          <circle cx="9" cy="7" r="1" />
+          <circle cx="5" cy="11" r="1" />
+          <circle cx="9" cy="11" r="1" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={onWatch}
+        disabled={r.status !== "ready"}
+        title={r.status === "ready" ? "Watch full video" : undefined}
+        aria-label={`Watch ${r.name}`}
+        className="group relative block aspect-video w-[80px] overflow-hidden rounded-sm bg-neutral-100 disabled:cursor-not-allowed"
+      >
+        {r.poster_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={r.poster_url}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
+        ) : null}
+        {r.status === "ready" && (
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+        )}
+      </button>
+      <div className="min-w-0">
+        {isEditing && draft ? (
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            autoFocus
+            className="w-full rounded-md border border-neutral-300 bg-white px-2 py-1 font-serif text-[16px] outline-none focus:border-[#040d08]"
+            style={{ fontFamily: "var(--font-roslindale-display)" }}
+          />
+        ) : (
+          <div
+            className="font-serif text-[16px] leading-tight tracking-tight"
+            style={{ fontFamily: "var(--font-roslindale-display)" }}
+          >
+            {r.name}
+          </div>
+        )}
+        <div className="mt-0.5 text-[11px] text-neutral-500">{r.vimeo_id}</div>
+        {r.error_message && (
+          <div className="mt-1 truncate text-[11px] text-red-600">
+            {r.error_message}
+          </div>
+        )}
+      </div>
+      <div className="text-[11px] uppercase tracking-wide text-neutral-600">
+        {isEditing && draft ? (
+          <div className="flex items-center gap-2">
+            <SelectShell>
+              <select
+                value={draft.category}
+                onChange={(e) =>
+                  setDraft({ ...draft, category: e.target.value as Category })
+                }
+                className={editSelectCls}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </SelectShell>
+            <SelectShell>
+              <select
+                value={draft.role}
+                onChange={(e) =>
+                  setDraft({ ...draft, role: e.target.value as Role })
+                }
+                className={editSelectCls}
+              >
+                {ROLES.map((rr) => (
+                  <option key={rr} value={rr}>
+                    {rr}
+                  </option>
+                ))}
+              </select>
+            </SelectShell>
+          </div>
+        ) : (
+          <span className="whitespace-nowrap">
+            {r.category} · {r.role}
+          </span>
+        )}
+      </div>
+      <StatusPill status={r.status} />
+      <div className="flex items-center gap-3 text-[11px] uppercase tracking-wide">
+        {isEditing ? (
+          <>
+            <TextButton onClick={onSave} disabled={rowBusy === "edit"}>
+              {rowBusy === "edit" ? "Saving…" : "Save"}
+            </TextButton>
+            <TextButton onClick={onCancel}>Cancel</TextButton>
+          </>
+        ) : (
+          <>
+            {r.status === "ready" && (
+              <TextButton onClick={onWatch}>Watch</TextButton>
+            )}
+            <TextButton onClick={onEdit} disabled={editingAny}>
+              Edit
+            </TextButton>
+            {r.status === "failed" && (
+              <TextButton onClick={onRetry} disabled={rowBusy === "retry"}>
+                {rowBusy === "retry" ? "Retrying…" : "Retry"}
+              </TextButton>
+            )}
+            <TextButton
+              onClick={onDelete}
+              disabled={rowBusy === "delete"}
+              tone="danger"
+            >
+              {rowBusy === "delete" ? "Deleting…" : "Delete"}
+            </TextButton>
+          </>
+        )}
+      </div>
+    </li>
   );
-}
-
-function fromRealtime(next: DashboardRow & {
-  clip_path: string | null;
-  poster_path: string | null;
-}): DashboardRow {
-  return {
-    vimeo_id: next.vimeo_id,
-    vimeo_hash: next.vimeo_hash,
-    name: next.name,
-    category: next.category,
-    role: next.role,
-    status: next.status,
-    poster_url: next.poster_path ? STORAGE_BASE + next.poster_path : null,
-    error_message: next.error_message ?? null,
-    position: next.position,
-    created_at: next.created_at,
-  };
 }
 
 function StatusPill({ status }: { status: Status }) {
@@ -526,9 +605,29 @@ function TextButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`cursor-pointer whitespace-nowrap text-[11px] uppercase tracking-wide transition disabled:cursor-default disabled:opacity-30 disabled:hover:text-current ${color}`}
+      className={`whitespace-nowrap text-[11px] uppercase tracking-wide transition disabled:opacity-30 disabled:hover:text-current ${color}`}
     >
       {children}
     </button>
   );
+}
+
+function fromRealtime(
+  next: DashboardRow & {
+    clip_path: string | null;
+    poster_path: string | null;
+  },
+): DashboardRow {
+  return {
+    vimeo_id: next.vimeo_id,
+    vimeo_hash: next.vimeo_hash,
+    name: next.name,
+    category: next.category,
+    role: next.role,
+    status: next.status,
+    poster_url: next.poster_path ? STORAGE_BASE + next.poster_path : null,
+    error_message: next.error_message ?? null,
+    position: next.position,
+    created_at: next.created_at,
+  };
 }

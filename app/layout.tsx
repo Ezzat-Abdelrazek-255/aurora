@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { ModalProvider } from "./components/ModalProvider";
+import { SITE } from "./lib/site";
 import "./globals.css";
 import "lenis/dist/lenis.css";
 
@@ -19,8 +20,68 @@ const roslindaleText = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Aurora Leonard — Director",
-  description: "Selected work",
+  metadataBase: new URL(SITE.url),
+  title: {
+    default: SITE.title,
+    template: `%s — ${SITE.name}`,
+  },
+  description: SITE.description,
+  applicationName: SITE.name,
+  authors: [{ name: SITE.name }],
+  creator: SITE.name,
+  publisher: SITE.name,
+  category: "arts",
+  keywords: [
+    "Aurora Leonard",
+    "filmmaker",
+    "film producer",
+    "commercial director",
+    "Reforest Films",
+    "cinematic storytelling",
+    "purpose-led films",
+    "documentary",
+    "brand films",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: SITE.url,
+    siteName: SITE.name,
+    title: SITE.title,
+    description: SITE.description,
+    locale: SITE.locale,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE.title,
+    description: SITE.description,
+    creator: SITE.twitter,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
 export default function RootLayout({

@@ -1,13 +1,62 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { JsonLd } from "../components/JsonLd";
 import { SmoothScroll } from "../components/SmoothScroll";
+import { SITE } from "../lib/site";
 
-export const metadata = {
-  title: "Aurora Leonard — About",
+const aboutDescription =
+  "About Aurora Leonard — filmmaker and producer behind Reforest Films. Award-nominated work spanning film, television, theater, and commercials, with a focus on purpose-led storytelling.";
+
+export const metadata: Metadata = {
+  title: "About",
+  description: aboutDescription,
+  alternates: { canonical: "/about" },
+  openGraph: {
+    title: `About — ${SITE.name}`,
+    description: aboutDescription,
+    url: "/about",
+    type: "profile",
+  },
+  twitter: {
+    title: `About — ${SITE.name}`,
+    description: aboutDescription,
+  },
+};
+
+const aboutJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  url: `${SITE.url}/about`,
+  name: `About ${SITE.name}`,
+  description: aboutDescription,
+  mainEntity: {
+    "@type": "Person",
+    name: SITE.name,
+    jobTitle: "Filmmaker & Producer",
+    url: SITE.url,
+    worksFor: {
+      "@type": "Organization",
+      name: "Reforest Films",
+      url: "https://www.reforestfilms.com/",
+    },
+    award: [
+      "LA Drama Critics Circle Award Nominee (2023) — Featured Performance, ‘A View from the Bridge’",
+      "Audience Choice Award Winner (2024) — NY Dances with Films, ‘Sonny Boy’",
+      "Honorable Mention (2025) — Ojai Film Festival, ‘Sonny Boy’",
+    ],
+    sameAs: [
+      "https://www.instagram.com/auroraleonard/",
+      "https://www.linkedin.com/in/aurora-leonard/",
+      "https://www.facebook.com/AuroraLeonardReforestFilms/",
+    ],
+  },
 };
 
 export default function AboutPage() {
   return (
     <main className="relative min-h-screen bg-white px-4 pt-8 pb-24 text-[#040d08] md:px-6 lg:px-10">
+      <JsonLd id="ld-about" data={aboutJsonLd} />
+      <h1 className="sr-only">About {SITE.name}</h1>
       <SmoothScroll />
       <div className="grid grid-cols-1 gap-x-10 gap-y-16 md:grid-cols-3">
         <aside className="md:col-span-1">

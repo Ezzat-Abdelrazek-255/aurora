@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LoginForm } from "./login-form";
 import { createSupabaseServerClient } from "../lib/supabase/server";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  robots: { index: false, follow: false },
+};
 
 type SearchParams = Promise<{
   next?: string;

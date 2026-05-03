@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 import { createSupabaseAdminClient } from "../lib/supabase/admin";
@@ -5,6 +6,11 @@ import { AddVideoForm } from "./AddVideoForm";
 import { VideoTable, type DashboardRow } from "./VideoTable";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default async function DashboardPage() {
   // Defense in depth — proxy.ts already gates this, re-check here.
