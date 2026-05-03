@@ -132,6 +132,34 @@ function clip(id, hlsUrl) {
   });
 }
 
+function extractPoster(id) {
+  const clipPath = join(OUT_DIR, `${id}.mp4`);
+  const out = join(OUT_DIR, `${id}.jpg`);
+  return new Promise((resolve, reject) => {
+    const ff = spawn("ffmpeg", [
+      "-y",
+      "-loglevel",
+      "error",
+      "-i",
+      clipPath,
+      "-frames:v",
+      "1",
+      "-q:v",
+      "3",
+      out,
+    ]);
+    let stderr = "";
+    ff.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    ff.on("exit", (code) =>
+      code === 0
+        ? resolve(out)
+        : reject(new Error(`poster ffmpeg exited ${code}\n${stderr}`)),
+    );
+  });
+}
+
 async function main() {
   if (!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
   const videos = loadVideos();
@@ -139,19 +167,34 @@ async function main() {
 
   for (const { id, hash } of videos) {
     const out = join(OUT_DIR, `${id}.mp4`);
-    if (!FORCE && existsSync(out) && statSync(out).size > 1024) {
-      console.log(`  skip ${id} (already ${statSync(out).size} bytes)`);
-      continue;
+    const poster = join(OUT_DIR, `${id}.jpg`);
+    const clipExists =
+      !FORCE && existsSync(out) && statSync(out).size > 1024;
+
+    if (!clipExists) {
+      try {
+        const html = await fetchEmbed(id, hash);
+        const cfg = extractConfig(html);
+        const hlsUrl = pickHlsUrl(cfg);
+        await clip(id, hlsUrl);
+        console.log(`  clip ${id} (${statSync(out).size} bytes)`);
+      } catch (e) {
+        console.error(`  FAIL clip ${id}: ${e.message}`);
+        continue;
+      }
+    } else {
+      console.log(`  skip clip ${id} (already ${statSync(out).size} bytes)`);
     }
-    try {
-      const html = await fetchEmbed(id, hash);
-      const cfg = extractConfig(html);
-      const hlsUrl = pickHlsUrl(cfg);
-      await clip(id, hlsUrl);
-      const size = statSync(out).size;
-      console.log(`  ok  ${id} (${size} bytes)`);
-    } catch (e) {
-      console.error(`  FAIL ${id}: ${e.message}`);
+
+    // Always (re)generate the poster from the local clip — it's cheap and
+    // ensures the JPG matches the clip's first frame exactly.
+    if (FORCE || !existsSync(poster)) {
+      try {
+        await extractPoster(id);
+        console.log(`  poster ${id} (${statSync(poster).size} bytes)`);
+      } catch (e) {
+        console.error(`  FAIL poster ${id}: ${e.message}`);
+      }
     }
   }
 }

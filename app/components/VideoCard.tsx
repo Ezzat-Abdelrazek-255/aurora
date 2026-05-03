@@ -32,7 +32,6 @@ export function VideoCard({
   const reverseStartMsRef = useRef(0);
   const reverseStartTimeRef = useRef(0);
   const [mounted, setMounted] = useState(false);
-  const [active, setActive] = useState(false);
 
   // Lazy-mount the <video> element so we don't ship 14 preloads at once.
   useEffect(() => {
@@ -117,20 +116,30 @@ export function VideoCard({
     cancelReverse();
     v.currentTime = 0;
     v.play().catch(() => {});
-    setActive(true);
   };
 
   const onLeave = () => {
     hoverRef.current = false;
     cancelReverse();
     const v = videoRef.current;
-    if (v) v.pause();
-    setActive(false);
+    if (v) {
+      v.pause();
+      // Snap back to frame 0 so the resting state is always the first frame.
+      v.currentTime = 0;
+    }
   };
 
   const onClick = () => {
-    openVideo({ id, hash, title, brand, thumb });
+    // Pass the local first-frame poster so the modal placeholder matches the
+    // card while the Vimeo iframe is loading.
+    openVideo({ id, hash, title, brand, thumb: `/clips/${id}.jpg` });
   };
+
+  // Local first-frame JPG (extracted from the clip itself, not Vimeo's
+  // thumbnail). Rendered eagerly underneath as the resting visual, and also
+  // used as the <video> poster — both layers show the same frame so there's
+  // no visual swap as the video element mounts on top.
+  const posterUrl = `/clips/${id}.jpg`;
 
   const preview = (
     <div
@@ -138,31 +147,28 @@ export function VideoCard({
       className="relative w-full overflow-hidden bg-neutral-200"
       style={{ aspectRatio: aspect }}
     >
-      {thumb && (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          src={thumb}
-          alt=""
-          aria-hidden="true"
-          loading="eager"
-          className="absolute inset-0 h-full w-full object-cover"
-          draggable={false}
-          onContextMenu={(e) => e.preventDefault()}
-        />
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={posterUrl}
+        alt=""
+        aria-hidden="true"
+        loading="eager"
+        className="absolute inset-0 h-full w-full object-cover"
+        draggable={false}
+        onContextMenu={(e) => e.preventDefault()}
+      />
       {mounted && (
         <video
           ref={videoRef}
           src={`/clips/${id}.mp4`}
+          poster={posterUrl}
           muted
           playsInline
           preload="metadata"
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           onEnded={onEnded}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out ${
-            active ? "opacity-100" : "opacity-0"
-          }`}
+          className="absolute inset-0 h-full w-full object-cover"
           onContextMenu={(e) => e.preventDefault()}
           draggable={false}
         />
@@ -195,12 +201,12 @@ export function VideoCard({
         <div className="w-[280px] shrink-0 md:w-[340px]">{preview}</div>
         <div className="min-w-0 pt-1">
           <p
-            className="text-[11px] tracking-wide text-neutral-700"
+            className="text-[11px] tracking-wide text-[#0a1f15]"
             style={{ fontFamily: "var(--font-roslindale-text)" }}
           >
             {brand}
           </p>
-          <h3 className="font-serif mt-1 text-[24px] leading-[1.1] tracking-tight text-neutral-900 md:text-[28px]">
+          <h3 className="font-serif mt-1 text-[24px] leading-[1.1] tracking-tight text-[#040d08] md:text-[28px]">
             {title}
           </h3>
         </div>
@@ -217,12 +223,12 @@ export function VideoCard({
     >
       {preview}
       <p
-        className="mt-3 text-[11px] tracking-wide text-neutral-700"
+        className="mt-3 text-[11px] tracking-wide text-[#0a1f15]"
         style={{ fontFamily: "var(--font-roslindale-text)" }}
       >
         {brand}
       </p>
-      <h3 className="font-serif mt-1 text-[26px] leading-[1.05] tracking-tight text-neutral-900 md:text-[28px]">
+      <h3 className="font-serif mt-1 text-[26px] leading-[1.05] tracking-tight text-[#040d08] md:text-[28px]">
         {title}
       </h3>
     </div>

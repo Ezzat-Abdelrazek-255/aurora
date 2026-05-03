@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FilterBar } from "./components/FilterBar";
 import { ScrollIndicator } from "./components/ScrollIndicator";
 import { SeedControls } from "./components/SeedControls";
 import { SmoothScroll } from "./components/SmoothScroll";
@@ -8,7 +9,7 @@ import { OnlyGridView, ViewSwitcher } from "./components/ViewSwitcher";
 import { ViewToggle } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
 import { DEFAULT_SEED } from "./lib/seed";
-import { getVimeoMeta, videos } from "./lib/videos";
+import { getVimeoMeta, videos, type Category } from "./lib/videos";
 
 const alignClass: Record<Cell["align"], string> = {
   start: "self-start",
@@ -25,7 +26,15 @@ type SearchParams = Promise<{
   y?: string | string[];
   move?: string | string[];
   view?: string | string[];
+  category?: string | string[];
+  q?: string | string[];
 }>;
+
+const VALID_CATEGORIES: Category[] = ["film-tv", "commercial", "music"];
+
+function isCategory(v: string | undefined): v is Category {
+  return !!v && (VALID_CATEGORIES as string[]).includes(v);
+}
 
 const DEFAULT_X = 80; // px
 const DEFAULT_Y = 180; // percent
@@ -51,6 +60,23 @@ export default async function Home({
   const initialView: ViewMode =
     pickFirst(sp.view) === "list" ? "list" : "grid";
 
+  const rawCategory = pickFirst(sp.category);
+  const category: Category | "all" = isCategory(rawCategory) ? rawCategory : "all";
+  const query = (pickFirst(sp.q) ?? "").trim();
+  const queryLower = query.toLowerCase();
+
+  const filteredVideos = videos.filter((v) => {
+    if (category !== "all" && v.category !== category) return false;
+    if (
+      queryLower &&
+      !v.title.toLowerCase().includes(queryLower) &&
+      !v.brand.toLowerCase().includes(queryLower)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   const moveParam = pickFirst(sp.move);
   const moveStr =
     moveParam !== undefined
@@ -60,13 +86,15 @@ export default async function Home({
       : "";
   const moves = parseMoves(moveStr);
 
-  const baseLayout = generateLayout(seed, videos.length);
+  // The grid layout is keyed off the *filtered* list length so removed videos
+  // don't leave gaps and the remaining cells repack nicely.
+  const baseLayout = generateLayout(seed, filteredVideos.length);
   const cols = applyMoves(baseLayout.cols, moves);
 
   const metas = await Promise.all(
-    videos.map((v) => getVimeoMeta(v.id, v.hash))
+    filteredVideos.map((v) => getVimeoMeta(v.id, v.hash))
   );
-  const enriched = videos.map((v, i) => {
+  const enriched = filteredVideos.map((v, i) => {
     const m = metas[i];
     const aspect =
       m?.width && m?.height
@@ -130,7 +158,7 @@ export default async function Home({
   );
 
   const listLayout = (
-    <>
+    <div className="list-shell-enter">
       {COPIES.map((copy) => (
         <section
           key={`list-${copy}`}
@@ -138,32 +166,25 @@ export default async function Home({
           aria-hidden={copy === 1 ? true : undefined}
           className="flex flex-col gap-y-8 py-8 pl-4 pr-4 md:gap-y-10 md:pl-[260px] md:pr-8 lg:pl-[300px]"
         >
-          {seededOrder.map((idx, i) => {
+          {seededOrder.map((idx) => {
             const v = enriched[idx];
             if (!v) return null;
-            // Cap stagger at ~12 rows so the cascade stays under ~600ms.
-            const delayMs = Math.min(i, 12) * 50;
             return (
-              <div
+              <VideoCard
                 key={`${seed}-${copy}-list-${idx}`}
-                className="list-row-enter"
-                style={{ animationDelay: `${delayMs}ms` }}
-              >
-                <VideoCard
-                  id={v.id}
-                  hash={v.hash}
-                  brand={v.brand}
-                  title={v.title}
-                  thumb={v.thumb}
-                  aspect={v.aspect}
-                  variant="list"
-                />
-              </div>
+                id={v.id}
+                hash={v.hash}
+                brand={v.brand}
+                title={v.title}
+                thumb={v.thumb}
+                aspect={v.aspect}
+                variant="list"
+              />
             );
           })}
         </section>
       ))}
-    </>
+    </div>
   );
 
   return (
@@ -177,6 +198,7 @@ export default async function Home({
       <ViewProvider initialView={initialView}>
         <SmoothScroll infinite />
         <ViewToggle />
+        <FilterBar category={category} query={query} />
         <OnlyGridView>
           <SeedControls seed={seed} x={x} y={y} move={moveStr} />
         </OnlyGridView>

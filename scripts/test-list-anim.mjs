@@ -1,4 +1,8 @@
-// Verify list view rows have a staggered slide-up entrance animation.
+// Verify:
+//   1. Cards use the local /clips/<id>.jpg poster, never i.vimeocdn.com
+//   2. Toggling to list view animates the entire list shell with a single
+//      transform (no opacity change, no per-row stagger)
+
 import { chromium } from "playwright";
 
 const URL = process.env.URL ?? "http://localhost:3000/";
@@ -13,66 +17,96 @@ const page = await ctx.newPage();
 
 await page.goto(URL, { waitUntil: "networkidle" });
 
-console.log("→ click List toggle and sample animation early");
+// 1. Check that no card uses a Vimeo CDN image — cards must use local posters.
+const imgSrcs = await page.evaluate(() =>
+  Array.from(document.querySelectorAll('[role="button"] img')).map(
+    (i) => i.src,
+  ),
+);
+const vimeoSrcs = imgSrcs.filter((s) => s.includes("vimeocdn.com"));
+const localSrcs = imgSrcs.filter((s) => /\/clips\/\d+\.jpg/.test(s));
+console.log(`  card imgs total: ${imgSrcs.length}`);
+console.log(`  vimeo cdn imgs:  ${vimeoSrcs.length}`);
+console.log(`  local clip imgs: ${localSrcs.length}`);
+
+// 2. Trigger list view and sample the shell wrapper transform.
+console.log("→ click List toggle");
 await page.locator('button[title="List view"]').click();
 
-// Sample at multiple frames to catch the in-progress animation.
 const samples = [];
 const t0 = Date.now();
-while (Date.now() - t0 < 800) {
-  const rows = await page.evaluate(() => {
-    const els = Array.from(document.querySelectorAll(".list-row-enter")).slice(0, 6);
-    return els.map((el) => {
-      const cs = getComputedStyle(el);
-      return {
-        opacity: +cs.opacity,
-        transform: cs.transform,
-        animationDelay: cs.animationDelay,
-        animationName: cs.animationName,
-      };
-    });
+while (Date.now() - t0 < 1100) {
+  const snap = await page.evaluate(() => {
+    const shell = document.querySelector(".list-shell-enter");
+    if (!shell) return null;
+    const cs = getComputedStyle(shell);
+    return {
+      opacity: +cs.opacity,
+      transform: cs.transform,
+      animationName: cs.animationName,
+    };
+    // Note: we sample only the SHELL, not children — children must NOT have
+    // their own transform animation now.
   });
-  samples.push({ ms: Date.now() - t0, rows });
+  // Also sample one child row to confirm it has no animation.
+  const childSnap = await page.evaluate(() => {
+    const child = document.querySelector(".list-shell-enter section > *");
+    if (!child) return null;
+    const cs = getComputedStyle(child);
+    return {
+      opacity: +cs.opacity,
+      transform: cs.transform,
+      animationName: cs.animationName,
+    };
+  });
+  samples.push({ ms: Date.now() - t0, shell: snap, child: childSnap });
   await sleep(40);
 }
 
 await browser.close();
 
-const first = samples[0]?.rows ?? [];
-const middle = samples[Math.floor(samples.length / 2)]?.rows ?? [];
-const last = samples[samples.length - 1]?.rows ?? [];
+const first = samples[0];
+const middle = samples[Math.floor(samples.length / 2)];
+const last = samples[samples.length - 1];
 
-console.log("\n--- snapshot at t=0ms (first 4 rows) ---");
-first.slice(0, 4).forEach((r, i) => {
-  console.log(`  row ${i}: opacity=${r.opacity.toFixed(2)}  delay=${r.animationDelay}  anim=${r.animationName}`);
+console.log("\n--- shell snapshots ---");
+[first, middle, last].forEach((s, i) => {
+  const label = ["start", "middle", "end"][i];
+  console.log(
+    `  ${label.padEnd(6)} opacity=${s.shell?.opacity}  anim=${s.shell?.animationName}  transform=${(s.shell?.transform ?? "").slice(0, 60)}`,
+  );
 });
-console.log("\n--- snapshot at mid-window ---");
-middle.slice(0, 4).forEach((r, i) =>
-  console.log(`  row ${i}: opacity=${r.opacity.toFixed(2)}  transform=${r.transform.slice(0, 60)}`),
-);
-console.log("\n--- snapshot at end-window ---");
-last.slice(0, 4).forEach((r, i) =>
-  console.log(`  row ${i}: opacity=${r.opacity.toFixed(2)}  transform=${r.transform.slice(0, 60)}`),
+console.log("\n--- one child row at start (should have NO animation) ---");
+console.log(
+  `  opacity=${first.child?.opacity}  anim=${first.child?.animationName}  transform=${first.child?.transform}`,
 );
 
-const animationApplied = first[0]?.animationName?.includes("list-row-in");
-const isStaggered =
-  first.length >= 4 &&
-  first[0].animationDelay !== first[1].animationDelay &&
-  first[1].animationDelay !== first[2].animationDelay;
-const opacityFinishedAtEnd = last[0] && last[0].opacity > 0.95;
-const wasInvisibleEarly = first.some((r) => r.opacity < 0.2);
+const noVimeoImgs = vimeoSrcs.length === 0 && localSrcs.length >= 14;
+const shellAnimated = first.shell?.animationName?.includes("list-shell-in");
+const opacityNeverChanged =
+  first.shell?.opacity === 1 &&
+  middle.shell?.opacity === 1 &&
+  last.shell?.opacity === 1;
+const transformChanged = first.shell?.transform !== last.shell?.transform;
+const childHasNoAnimation = !first.child?.animationName?.includes("list-row");
 
-console.log(`\n  animation applied: ${animationApplied}`);
-console.log(`  staggered delays:  ${isStaggered}`);
-console.log(`  opacity 0 early:   ${wasInvisibleEarly}`);
-console.log(`  opacity ≈ 1 final: ${opacityFinishedAtEnd}`);
+console.log("\n  no vimeo imgs:        ", noVimeoImgs);
+console.log("  shell animation:       ", shellAnimated);
+console.log("  opacity stayed at 1:   ", opacityNeverChanged);
+console.log("  shell transform moved: ", transformChanged);
+console.log("  no per-row anim:       ", childHasNoAnimation);
 
-const ok = animationApplied && isStaggered && wasInvisibleEarly && opacityFinishedAtEnd;
+const ok =
+  noVimeoImgs &&
+  shellAnimated &&
+  opacityNeverChanged &&
+  transformChanged &&
+  childHasNoAnimation;
+
 if (ok) {
-  console.log("\n✓ LIST ENTRANCE ANIMATION OK");
+  console.log("\n✓ FIRST-FRAME POSTER + WHOLE-LIST TRANSLATE OK");
   process.exit(0);
 } else {
-  console.log("\n✗ LIST ENTRANCE FAIL");
+  console.log("\n✗ FAIL");
   process.exit(1);
 }

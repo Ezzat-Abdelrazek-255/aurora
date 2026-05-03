@@ -67,26 +67,24 @@ body::-webkit-scrollbar-thumb,
   90%      { transform: translate(-10%, 10%); }
 }
 
-/* List-view entrance — each row rises and fades in. Stagger is set per row
-   via inline animation-delay so the cascade reads top-to-bottom on view in. */
-@keyframes list-row-in {
+/* List-view entrance — the entire list slides up as a single block from
+   below its final position. No opacity; pure transform. */
+@keyframes list-shell-in {
   from {
-    opacity: 0;
-    transform: translateY(28px);
+    transform: translateY(120px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
 
-.list-row-enter {
-  animation: list-row-in 0.7s var(--ease-primary) both;
-  will-change: opacity, transform;
+.list-shell-enter {
+  animation: list-shell-in 0.85s var(--ease-primary) both;
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .list-row-enter {
+  .list-shell-enter {
     animation: none;
   }
 }
