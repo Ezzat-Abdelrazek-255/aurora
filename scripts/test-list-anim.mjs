@@ -83,23 +83,21 @@ console.log(
 
 const noVimeoImgs = vimeoSrcs.length === 0 && localSrcs.length >= 14;
 const shellAnimated = first.shell?.animationName?.includes("list-shell-in");
-const opacityNeverChanged =
-  first.shell?.opacity === 1 &&
-  middle.shell?.opacity === 1 &&
-  last.shell?.opacity === 1;
+const opacityFadesIn =
+  (first.shell?.opacity ?? 1) < 0.3 && (last.shell?.opacity ?? 0) > 0.95;
 const transformChanged = first.shell?.transform !== last.shell?.transform;
 const childHasNoAnimation = !first.child?.animationName?.includes("list-row");
 
 console.log("\n  no vimeo imgs:        ", noVimeoImgs);
 console.log("  shell animation:       ", shellAnimated);
-console.log("  opacity stayed at 1:   ", opacityNeverChanged);
+console.log("  opacity 0 -> 1:        ", opacityFadesIn);
 console.log("  shell transform moved: ", transformChanged);
 console.log("  no per-row anim:       ", childHasNoAnimation);
 
 const ok =
   noVimeoImgs &&
   shellAnimated &&
-  opacityNeverChanged &&
+  opacityFadesIn &&
   transformChanged &&
   childHasNoAnimation;
 

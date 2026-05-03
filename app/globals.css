@@ -67,20 +67,22 @@ body::-webkit-scrollbar-thumb,
   90%      { transform: translate(-10%, 10%); }
 }
 
-/* List-view entrance — the entire list slides up as a single block from
-   below its final position. No opacity; pure transform. */
+/* List-view entrance — the entire list slides up + fades in as a single
+   block. */
 @keyframes list-shell-in {
   from {
+    opacity: 0;
     transform: translateY(100vh);
   }
   to {
+    opacity: 1;
     transform: translateY(0);
   }
 }
 
 .list-shell-enter {
   animation: list-shell-in 0.75s var(--ease-primary) both;
-  will-change: transform;
+  will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
