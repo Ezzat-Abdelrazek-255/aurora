@@ -57,7 +57,7 @@ const DEFAULT_X = 80; // px
 const DEFAULT_Y = 180; // percent
 const X_MAX = 400;
 const Y_MAX = 800;
-const DEFAULT_MOVE = "1.4>0";
+const DEFAULT_MOVE = "";
 const COPIES = [0, 1] as const;
 
 export default async function Home({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Spinner } from "../components/Spinner";
 import { createSupabaseBrowserClient } from "../lib/supabase/client";
 
 export function LoginForm({
@@ -68,7 +69,10 @@ export function LoginForm({
         disabled={pending || !email.trim()}
         className="mt-2 rounded-md bg-[#040d08] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-neutral-800 disabled:opacity-60"
       >
-        {pending ? "Sending…" : "Send magic link"}
+        <span className="inline-flex items-center justify-center gap-2">
+          {pending && <Spinner />}
+          {pending ? "Sending" : "Send magic link"}
+        </span>
       </button>
 
       {sent && (
