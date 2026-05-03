@@ -30,6 +30,7 @@ export function VideoCard({
   const reverseStartMsRef = useRef(0);
   const reverseStartTimeRef = useRef(0);
   const [mounted, setMounted] = useState(false);
+  const [active, setActive] = useState(false);
 
   // Lazy-mount the <video> element so we don't ship 14 preloads at once.
   useEffect(() => {
@@ -114,6 +115,7 @@ export function VideoCard({
     cancelReverse();
     v.currentTime = 0;
     v.play().catch(() => {});
+    setActive(true);
   };
 
   const onLeave = () => {
@@ -121,6 +123,7 @@ export function VideoCard({
     cancelReverse();
     const v = videoRef.current;
     if (v) v.pause();
+    setActive(false);
   };
 
   const onClick = () => {
@@ -169,7 +172,9 @@ export function VideoCard({
             disablePictureInPicture
             controlsList="nodownload nofullscreen noremoteplayback"
             onEnded={onEnded}
-            className="absolute inset-0 h-full w-full object-cover"
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out ${
+              active ? "opacity-100" : "opacity-0"
+            }`}
             onContextMenu={(e) => e.preventDefault()}
             draggable={false}
           />
