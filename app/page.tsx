@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { FilterBar } from "./components/FilterBar";
+import { FilteredCell } from "./components/FilteredCell";
+import { FilterProvider } from "./components/FilterProvider";
 import { ScrollIndicator } from "./components/ScrollIndicator";
 import { SeedControls } from "./components/SeedControls";
 import { SmoothScroll } from "./components/SmoothScroll";
@@ -9,7 +11,7 @@ import { OnlyGridView, ViewSwitcher } from "./components/ViewSwitcher";
 import { ViewToggle } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
 import { DEFAULT_SEED } from "./lib/seed";
-import { getVimeoMeta, videos, type Category } from "./lib/videos";
+import { listReadyVideos, type Category } from "./lib/videos";
 
 const alignClass: Record<Cell["align"], string> = {
   start: "self-start",
@@ -60,18 +62,14 @@ export default async function Home({
   const initialView: ViewMode =
     pickFirst(sp.view) === "list" ? "list" : "grid";
 
+  // Filter is server-seeded from the URL but applied client-side from here on
+  // out — see FilterProvider. Server always renders the full set of cards so
+  // typing in the search box is instant (no router.push, no remount).
   const rawCategory = pickFirst(sp.category);
-  const category: Category | "all" = isCategory(rawCategory) ? rawCategory : "all";
-  const query = (pickFirst(sp.q) ?? "").trim();
-  const queryLower = query.toLowerCase();
-
-  const filteredVideos = videos.filter((v) => {
-    if (category !== "all" && v.category !== category) return false;
-    if (queryLower && !v.name.toLowerCase().includes(queryLower)) {
-      return false;
-    }
-    return true;
-  });
+  const initialCategory: Category | "all" = isCategory(rawCategory)
+    ? rawCategory
+    : "all";
+  const initialQuery = (pickFirst(sp.q) ?? "").trim();
 
   const moveParam = pickFirst(sp.move);
   const moveStr =
@@ -82,27 +80,12 @@ export default async function Home({
       : "";
   const moves = parseMoves(moveStr);
 
-  // The grid layout is keyed off the *filtered* list length so removed videos
-  // don't leave gaps and the remaining cells repack nicely.
-  const baseLayout = generateLayout(seed, filteredVideos.length);
+  // Source of truth is now Supabase. listReadyVideos() returns each row with
+  // resolved storage URLs (clipUrl / posterUrl) and the persisted aspect.
+  const enriched = await listReadyVideos();
+  const baseLayout = generateLayout(seed, enriched.length);
   const cols = applyMoves(baseLayout.cols, moves);
 
-  const metas = await Promise.all(
-    filteredVideos.map((v) => getVimeoMeta(v.id, v.hash))
-  );
-  const enriched = filteredVideos.map((v, i) => {
-    const m = metas[i];
-    const aspect =
-      m?.width && m?.height
-        ? m.width / m.height
-        : m?.thumbnail_width && m?.thumbnail_height
-        ? m.thumbnail_width / m.thumbnail_height
-        : 16 / 9;
-    return { ...v, thumb: m?.thumbnail_url ?? null, aspect };
-  });
-
-  // Walk the seeded grid columns row-by-row to derive a deterministic list
-  // ordering from the same seed.
   const seededOrder: number[] = [];
   const maxLen = Math.max(...cols.map((c) => c.length));
   for (let row = 0; row < maxLen; row++) {
@@ -115,8 +98,9 @@ export default async function Home({
     const v = enriched[cell.index];
     if (!v) return null;
     return (
-      <div
+      <FilteredCell
         key={`${seed}-${copy}-${cell.index}`}
+        video={{ name: v.name, role: v.role, category: v.category }}
         className={alignClass[cell.align]}
         style={{
           width: `${cell.widthPct}%`,
@@ -128,10 +112,11 @@ export default async function Home({
           hash={v.hash}
           name={v.name}
           role={v.role}
-          thumb={v.thumb}
+          clipUrl={v.clipUrl}
+          posterUrl={v.posterUrl}
           aspect={v.aspect}
         />
-      </div>
+      </FilteredCell>
     );
   };
 
@@ -166,16 +151,21 @@ export default async function Home({
             const v = enriched[idx];
             if (!v) return null;
             return (
-              <VideoCard
+              <FilteredCell
                 key={`${seed}-${copy}-list-${idx}`}
-                id={v.id}
-                hash={v.hash}
-                name={v.name}
-                role={v.role}
-                thumb={v.thumb}
-                aspect={v.aspect}
-                variant="list"
-              />
+                video={{ name: v.name, role: v.role, category: v.category }}
+              >
+                <VideoCard
+                  id={v.id}
+                  hash={v.hash}
+                  name={v.name}
+                  role={v.role}
+                  clipUrl={v.clipUrl}
+                  posterUrl={v.posterUrl}
+                  aspect={v.aspect}
+                  variant="list"
+                />
+              </FilteredCell>
             );
           })}
         </section>
@@ -191,34 +181,38 @@ export default async function Home({
         }}
       />
 
-      <ViewProvider initialView={initialView}>
-        <SmoothScroll infinite />
-        <ViewToggle />
-        <FilterBar category={category} query={query} />
-        <OnlyGridView>
-          <SeedControls seed={seed} x={x} y={y} move={moveStr} />
-        </OnlyGridView>
-        <ScrollIndicator />
+      <FilterProvider
+        initial={{ category: initialCategory, query: initialQuery }}
+      >
+        <ViewProvider initialView={initialView}>
+          <SmoothScroll infinite />
+          <ViewToggle />
+          <FilterBar />
+          <OnlyGridView>
+            <SeedControls seed={seed} x={x} y={y} move={moveStr} />
+          </OnlyGridView>
+          <ScrollIndicator />
 
-        <nav
-          className="pointer-events-auto fixed left-4 top-6 z-40 font-serif text-[24px] leading-[1.2] md:left-6 md:top-8 md:text-[26px] lg:left-10"
-          aria-label="Primary"
-        >
-          <p className="font-bold tracking-tight">Aurora Leonard</p>
-          <ul className="mt-2 space-y-1">
-            <li>
-              <Link
-                href="/about"
-                className="transition-colors hover:italic hover:text-emerald-600"
-              >
-                About
-              </Link>
-            </li>
-          </ul>
-        </nav>
+          <nav
+            className="pointer-events-auto fixed left-4 top-6 z-40 font-serif text-[24px] leading-[1.2] md:left-6 md:top-8 md:text-[26px] lg:left-10"
+            aria-label="Primary"
+          >
+            <p className="font-bold tracking-tight">Aurora Leonard</p>
+            <ul className="mt-2 space-y-1">
+              <li>
+                <Link
+                  href="/about"
+                  className="transition-colors hover:italic hover:text-emerald-600"
+                >
+                  About
+                </Link>
+              </li>
+            </ul>
+          </nav>
 
-        <ViewSwitcher grid={gridLayout} list={listLayout} />
-      </ViewProvider>
+          <ViewSwitcher grid={gridLayout} list={listLayout} />
+        </ViewProvider>
+      </FilterProvider>
     </main>
   );
 }

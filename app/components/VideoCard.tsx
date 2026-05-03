@@ -8,7 +8,10 @@ type Props = {
   hash: string;
   name: string;
   role: "Producer" | "Talent";
-  thumb: string | null;
+  /** Absolute URL for the 3s preview MP4 (Supabase Storage). */
+  clipUrl: string;
+  /** Absolute URL for the first-frame JPG poster (Supabase Storage). */
+  posterUrl: string;
   aspect: number;
   variant?: "grid" | "list";
 };
@@ -20,7 +23,8 @@ export function VideoCard({
   hash,
   name,
   role,
-  thumb,
+  clipUrl,
+  posterUrl,
   aspect,
   variant = "grid",
 }: Props) {
@@ -130,16 +134,10 @@ export function VideoCard({
   };
 
   const onClick = () => {
-    // Pass the local first-frame poster so the modal placeholder matches the
-    // card while the Vimeo iframe is loading.
-    openVideo({ id, hash, name, role, thumb: `/clips/${id}.jpg` });
+    // Pass the same poster URL the card is rendering so the modal placeholder
+    // matches while the Vimeo iframe boots.
+    openVideo({ id, hash, name, role, thumb: posterUrl });
   };
-
-  // Local first-frame JPG (extracted from the clip itself, not Vimeo's
-  // thumbnail). Rendered eagerly underneath as the resting visual, and also
-  // used as the <video> poster — both layers show the same frame so there's
-  // no visual swap as the video element mounts on top.
-  const posterUrl = `/clips/${id}.jpg`;
 
   const preview = (
     <div
@@ -147,6 +145,9 @@ export function VideoCard({
       className="relative w-full overflow-hidden bg-neutral-200"
       style={{ aspectRatio: aspect }}
     >
+      {/* First-frame JPG (Supabase Storage). Rendered eagerly underneath as
+          the resting visual; the <video> below uses the same URL as its
+          poster so there's no visual swap when it mounts on top. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={posterUrl}
@@ -160,7 +161,7 @@ export function VideoCard({
       {mounted && (
         <video
           ref={videoRef}
-          src={`/clips/${id}.mp4`}
+          src={clipUrl}
           poster={posterUrl}
           muted
           playsInline

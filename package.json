@@ -10,6 +10,8 @@
     "clips": "node scripts/clip-videos.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.1",
+    "@trigger.dev/sdk": "^4.4.5",
     "lenis": "^1.3.23",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
@@ -17,6 +19,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -25,6 +28,7 @@
     "eslint-config-next": "16.2.4",
     "playwright": "^1.59.1",
     "tailwindcss": "^4",
+    "trigger.dev": "^4.4.5",
     "typescript": "^5"
   }
 }

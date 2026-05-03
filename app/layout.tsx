@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ModalProvider } from "./components/ModalProvider";
-import { SmoothScroll } from "./components/SmoothScroll";
 import "./globals.css";
 import "lenis/dist/lenis.css";
 
@@ -20,7 +19,7 @@ const roslindaleText = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Aurora — Director",
+  title: "Aurora Leonard — Director",
   description: "Selected work",
 };
 
@@ -41,7 +40,6 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://vod-progressive.akamaized.net" />
       </head>
       <body className="min-h-full">
-        <SmoothScroll />
         <ModalProvider>{children}</ModalProvider>
         <div className="grain" aria-hidden="true" />
       </body>

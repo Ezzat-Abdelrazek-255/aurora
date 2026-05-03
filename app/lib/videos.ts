@@ -1,31 +1,23 @@
+import { createClient } from "@supabase/supabase-js";
+
 export type Category = "film-tv" | "commercial" | "music";
 export type Role = "Producer" | "Talent";
 
+/**
+ * Server-side shape of a video. The `clipUrl` and `posterUrl` fields are
+ * absolute Supabase Storage URLs resolved at fetch time so the homepage's
+ * Server Components don't need direct Supabase access in client code.
+ */
 export type Video = {
   id: string;
   hash: string;
-  /** Production company for commercials, series/show name for productions. */
   name: string;
   category: Category;
   role: Role;
+  clipUrl: string;
+  posterUrl: string;
+  aspect: number;
 };
-
-export const videos: Video[] = [
-  { id: "1185495857", hash: "b229874bcf", name: "Apple", category: "commercial", role: "Talent" },
-  { id: "1185506426", hash: "51eee0e281", name: "Libresse", category: "commercial", role: "Talent" },
-  { id: "1185578722", hash: "b0cfdcb19a", name: "Like Sugar", category: "music", role: "Talent" },
-  { id: "1185699012", hash: "05324b8bff", name: "Apple", category: "commercial", role: "Talent" },
-  { id: "1185671764", hash: "d9afa817da", name: "Apple", category: "commercial", role: "Talent" },
-  { id: "1185677642", hash: "223271c8dd", name: "Nike", category: "commercial", role: "Talent" },
-  { id: "1185679955", hash: "d9130ae9de", name: "John Lewis", category: "commercial", role: "Talent" },
-  { id: "1185677828", hash: "619ba28358", name: "Nike", category: "commercial", role: "Talent" },
-  { id: "1185677076", hash: "a03be8533b", name: "Bodyform", category: "commercial", role: "Talent" },
-  { id: "1185671998", hash: "0086da9e04", name: "Cadbury", category: "commercial", role: "Talent" },
-  { id: "1185678996", hash: "d4e32bed54", name: "Nike", category: "commercial", role: "Talent" },
-  { id: "1185678936", hash: "54abb94ff0", name: "Audi", category: "commercial", role: "Talent" },
-  { id: "1185681938", hash: "24f5a03e14", name: "Tokyo Olympics", category: "film-tv", role: "Talent" },
-  { id: "1185680078", hash: "3b2ad7abff", name: "Sport England", category: "commercial", role: "Talent" },
-];
 
 export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "film-tv", label: "Film/TV" },
@@ -33,22 +25,72 @@ export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "music", label: "Music" },
 ];
 
-export type VimeoOEmbed = {
-  thumbnail_url?: string;
-  thumbnail_width?: number;
-  thumbnail_height?: number;
-  width?: number;
-  height?: number;
+type VideoRow = {
+  vimeo_id: string;
+  vimeo_hash: string;
+  name: string;
+  category: Category;
+  role: Role;
+  clip_path: string | null;
+  poster_path: string | null;
+  aspect_ratio: number | string | null;
 };
 
-export async function getVimeoMeta(id: string, hash: string): Promise<VimeoOEmbed | null> {
-  const target = `https://vimeo.com/${id}/${hash}`;
-  const url = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(target)}&width=1280`;
-  try {
-    const res = await fetch(url, { next: { revalidate: 86400 } });
-    if (!res.ok) return null;
-    return (await res.json()) as VimeoOEmbed;
-  } catch {
-    return null;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+function readClient() {
+  if (!SUPABASE_URL || !SUPABASE_ANON) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    );
   }
+  return createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: { persistSession: false },
+  });
+}
+
+/**
+ * Fetch every video that has finished processing. Public read is gated by RLS
+ * (`status = 'ready'`) so the anon key is sufficient.
+ *
+ * Cache strategy: explicit fetch on each request for now. When the client
+ * dashboard ships we'll wrap this in `'use cache'` + `cacheTag('videos')`
+ * and call `revalidateTag('videos', 'max')` from the API routes after
+ * add/delete (Next 16's two-arg revalidateTag with a cacheLife profile —
+ * the single-arg form is deprecated).
+ */
+export async function listReadyVideos(): Promise<Video[]> {
+  const supabase = readClient();
+  const { data, error } = await supabase
+    .from("videos")
+    .select(
+      "vimeo_id,vimeo_hash,name,category,role,clip_path,poster_path,aspect_ratio",
+    )
+    .eq("status", "ready")
+    .order("position", { ascending: true });
+
+  if (error) throw error;
+
+  const rows = (data ?? []) as VideoRow[];
+  return rows
+    .filter((r) => r.clip_path && r.poster_path)
+    .map((r) => {
+      const clipUrl = supabase.storage
+        .from("clips")
+        .getPublicUrl(r.clip_path as string).data.publicUrl;
+      const posterUrl = supabase.storage
+        .from("clips")
+        .getPublicUrl(r.poster_path as string).data.publicUrl;
+      return {
+        id: r.vimeo_id,
+        hash: r.vimeo_hash,
+        name: r.name,
+        category: r.category,
+        role: r.role,
+        clipUrl,
+        posterUrl,
+        aspect: Number(r.aspect_ratio ?? 16 / 9),
+      } satisfies Video;
+    });
 }

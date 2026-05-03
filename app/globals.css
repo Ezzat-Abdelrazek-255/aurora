@@ -81,7 +81,7 @@ body::-webkit-scrollbar-thumb,
 }
 
 .list-shell-enter {
-  animation: list-shell-in 0.75s var(--ease-primary) both;
+  animation: list-shell-in 0.4s var(--ease-primary) both;
   will-change: opacity, transform;
 }
 
