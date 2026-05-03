@@ -102,7 +102,7 @@ export function VideoCard({
     if (!hoverRef.current) return;
     const v = videoRef.current;
     if (!v) return;
-    const from = v.currentTime || v.duration || 2;
+    const from = v.currentTime || v.duration || 3;
     startReverse(from);
   };
 

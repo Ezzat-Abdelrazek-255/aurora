@@ -6,7 +6,7 @@
 import { chromium } from "playwright";
 
 const URL = process.env.URL ?? "http://localhost:3000/";
-const HOVER_DURATION_MS = 6000;
+const HOVER_DURATION_MS = 8000;
 const SAMPLE_INTERVAL_MS = 50;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -73,14 +73,14 @@ let prev = samples[0]?.t ?? 0;
 let dir = 0; // +1, -1, 0
 let maxT = 0;
 let minT = 1;
-let goesAbove1_5 = false;
+let goesAbove2_5 = false;
 let goesBelow0_3AfterRise = false;
 
 for (const s of samples) {
   if (s.t > maxT) maxT = s.t;
   if (s.t < minT) minT = s.t;
-  if (s.t > 1.5) goesAbove1_5 = true;
-  if (goesAbove1_5 && s.t < 0.3) goesBelow0_3AfterRise = true;
+  if (s.t > 2.5) goesAbove2_5 = true;
+  if (goesAbove2_5 && s.t < 0.3) goesBelow0_3AfterRise = true;
   const delta = s.t - prev;
   const newDir = Math.abs(delta) < 0.01 ? dir : delta > 0 ? 1 : -1;
   if (dir !== 0 && newDir !== 0 && newDir !== dir) directionChanges++;
@@ -101,11 +101,11 @@ console.log(`  samples: ${samples.length}`);
 console.log(`  min t:  ${minT.toFixed(3)}`);
 console.log(`  max t:  ${maxT.toFixed(3)}`);
 console.log(`  direction changes: ${directionChanges}`);
-console.log(`  reached t > 1.5: ${goesAbove1_5}`);
+console.log(`  reached t > 2.5: ${goesAbove2_5}`);
 console.log(`  came back below 0.3 after rising: ${goesBelow0_3AfterRise}`);
 
 const bounceWorks =
-  goesAbove1_5 && goesBelow0_3AfterRise && directionChanges >= 2;
+  goesAbove2_5 && goesBelow0_3AfterRise && directionChanges >= 2;
 if (bounceWorks) {
   console.log("\n✓ BOUNCE OK — forward + reverse + at least one full cycle");
   process.exit(0);

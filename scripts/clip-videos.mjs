@@ -96,7 +96,7 @@ function clip(id, hlsUrl) {
       "-i",
       hlsUrl,
       "-t",
-      "2",
+      "3",
       "-c:v",
       "libx264",
       "-preset",
