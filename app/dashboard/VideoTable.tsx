@@ -474,7 +474,7 @@ function StatusPill({ status }: { status: Status }) {
       : "bg-neutral-50 text-neutral-600 ring-neutral-200";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-[2px] text-[9px] font-medium uppercase tracking-[0.08em] ring-1 ring-inset ${color}`}
+      className={`inline-flex items-center rounded-full px-2 py-1 text-[9px] font-medium uppercase leading-none tracking-[0.08em] ring-1 ring-inset ${color}`}
     >
       {status}
     </span>
