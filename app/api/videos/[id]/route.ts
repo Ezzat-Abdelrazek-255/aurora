@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
+import { isAllowedAdmin } from "../../../lib/admin";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
 import type { processVideo } from "../../../../trigger/processVideo";
@@ -22,8 +23,7 @@ async function requireAdmin(): Promise<
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const allowed = process.env.ALLOWED_ADMIN_EMAIL?.toLowerCase();
-  if (!user || !allowed || user.email?.toLowerCase() !== allowed) {
+  if (!user || !isAllowedAdmin(user.email)) {
     return {
       ok: false,
       res: NextResponse.json(

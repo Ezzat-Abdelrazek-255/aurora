@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LoginForm } from "./login-form";
+import { isAllowedAdmin } from "../lib/admin";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -28,11 +29,7 @@ export default async function LoginPage({
   const sp = await searchParams;
   const next = sp.next ?? "/dashboard";
 
-  if (
-    user &&
-    process.env.ALLOWED_ADMIN_EMAIL &&
-    user.email?.toLowerCase() === process.env.ALLOWED_ADMIN_EMAIL.toLowerCase()
-  ) {
+  if (user && isAllowedAdmin(user.email)) {
     redirect(next);
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Spinner } from "../components/Spinner";
 import {
   DndContext,
   KeyboardSensor,
@@ -395,10 +396,11 @@ function SortableRow(props: RowProps) {
         liStyle: {
           transform: CSS.Transform.toString(transform),
           transition,
-          zIndex: isDragging ? 10 : undefined,
+          zIndex: isDragging ? 50 : 1,
+          position: "relative",
         },
         liExtraClass: isDragging
-          ? "shadow-md ring-1 ring-inset ring-neutral-300"
+          ? "shadow-2xl border border-dashed border-neutral-400 bg-white"
           : "",
         handleRef: setActivatorNodeRef,
         handleProps: { ...attributes, ...listeners },
@@ -434,6 +436,19 @@ function RowBody({
     <li
       ref={dnd?.liRef}
       style={dnd?.liStyle}
+      onKeyDown={
+        isEditing
+          ? (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSave();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                onCancel();
+              }
+            }
+          : undefined
+      }
       className={`grid grid-cols-[24px_80px_1fr_auto_auto_auto] items-center gap-4 bg-white px-4 py-3 ${
         dnd?.liExtraClass ?? ""
       }`}
@@ -504,7 +519,7 @@ function RowBody({
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             autoFocus
-            className="w-full rounded-md border border-neutral-300 bg-white px-2 py-1 font-serif text-[16px] outline-none focus:border-[#040d08]"
+            className="box-border h-[28px] w-full rounded-md border border-neutral-300 bg-white px-2 font-serif text-[14px] leading-none outline-none focus:border-[#040d08]"
             style={{ fontFamily: "var(--font-roslindale-display)" }}
           />
         ) : (
@@ -515,7 +530,9 @@ function RowBody({
             {r.name}
           </div>
         )}
-        <div className="mt-0.5 text-[11px] text-neutral-500">{r.vimeo_id}</div>
+        {!isEditing && (
+          <div className="mt-0.5 text-[11px] text-neutral-500">{r.vimeo_id}</div>
+        )}
         {r.error_message && (
           <div className="mt-1 truncate text-[11px] text-red-600">
             {r.error_message}
@@ -567,7 +584,10 @@ function RowBody({
         {isEditing ? (
           <>
             <TextButton onClick={onSave} disabled={rowBusy === "edit"}>
-              {rowBusy === "edit" ? "Saving…" : "Save"}
+              <span className="inline-flex items-center gap-1.5">
+                {rowBusy === "edit" && <Spinner size={11} />}
+                {rowBusy === "edit" ? "Saving" : "Save"}
+              </span>
             </TextButton>
             <TextButton onClick={onCancel}>Cancel</TextButton>
           </>
@@ -581,7 +601,10 @@ function RowBody({
             </TextButton>
             {r.status === "failed" && (
               <TextButton onClick={onRetry} disabled={rowBusy === "retry"}>
-                {rowBusy === "retry" ? "Retrying…" : "Retry"}
+                <span className="inline-flex items-center gap-1.5">
+                  {rowBusy === "retry" && <Spinner size={11} />}
+                  {rowBusy === "retry" ? "Retrying" : "Retry"}
+                </span>
               </TextButton>
             )}
             <TextButton
@@ -589,7 +612,10 @@ function RowBody({
               disabled={rowBusy === "delete"}
               tone="danger"
             >
-              {rowBusy === "delete" ? "Deleting…" : "Delete"}
+              <span className="inline-flex items-center gap-1.5">
+                {rowBusy === "delete" && <Spinner size={11} />}
+                {rowBusy === "delete" ? "Deleting" : "Delete"}
+              </span>
             </TextButton>
           </>
         )}
@@ -609,7 +635,7 @@ function StatusPill({ status }: { status: Status }) {
       : "bg-neutral-50 text-neutral-600 ring-neutral-200";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-1 text-[9px] font-medium uppercase leading-none tracking-[0.08em] ring-1 ring-inset ${color}`}
+      className={`inline-flex h-[18px] items-center rounded-full px-2 text-[9px] font-medium uppercase leading-none tracking-[0.08em] ring-1 ring-inset ${color}`}
     >
       {status}
     </span>

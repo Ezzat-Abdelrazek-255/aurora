@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { JsonLd } from "../components/JsonLd";
 import { SmoothScroll } from "../components/SmoothScroll";
+import { getAboutContent } from "../lib/about";
 import { SITE } from "../lib/site";
+
+export const dynamic = "force-dynamic";
 
 const aboutDescription =
   "About Aurora Leonard — filmmaker and producer behind Reforest Films. Award-nominated work spanning film, television, theater, and commercials, with a focus on purpose-led storytelling.";
@@ -23,36 +26,30 @@ export const metadata: Metadata = {
   },
 };
 
-const aboutJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "AboutPage",
-  url: `${SITE.url}/about`,
-  name: `About ${SITE.name}`,
-  description: aboutDescription,
-  mainEntity: {
-    "@type": "Person",
-    name: SITE.name,
-    jobTitle: "Filmmaker & Producer",
-    url: SITE.url,
-    worksFor: {
-      "@type": "Organization",
-      name: "Reforest Films",
-      url: "https://www.reforestfilms.com/",
-    },
-    award: [
-      "LA Drama Critics Circle Award Nominee (2023) — Featured Performance, ‘A View from the Bridge’",
-      "Audience Choice Award Winner (2024) — NY Dances with Films, ‘Sonny Boy’",
-      "Honorable Mention (2025) — Ojai Film Festival, ‘Sonny Boy’",
-    ],
-    sameAs: [
-      "https://www.instagram.com/auroraleonard/",
-      "https://www.linkedin.com/in/aurora-leonard/",
-      "https://www.facebook.com/AuroraLeonardReforestFilms/",
-    ],
-  },
-};
+export default async function AboutPage() {
+  const about = await getAboutContent();
 
-export default function AboutPage() {
+  const aboutJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    url: `${SITE.url}/about`,
+    name: `About ${SITE.name}`,
+    description: aboutDescription,
+    mainEntity: {
+      "@type": "Person",
+      name: SITE.name,
+      jobTitle: "Filmmaker & Producer",
+      url: SITE.url,
+      worksFor: {
+        "@type": "Organization",
+        name: "Reforest Films",
+        url: "https://www.reforestfilms.com/",
+      },
+      award: about.awards.map((a) => `${a.kind} (${a.year}) — ${a.body}`),
+      sameAs: about.connect_links.map((l) => l.url),
+    },
+  };
+
   return (
     <main className="relative min-h-screen bg-white px-4 pt-8 pb-24 text-[#040d08] md:px-6 lg:px-10">
       <JsonLd id="ld-about" data={aboutJsonLd} />
@@ -75,7 +72,7 @@ export default function AboutPage() {
                 <Link
                   href="/about"
                   aria-current="page"
-                  className="text-red-600"
+                  className="transition-colors hover:italic hover:text-emerald-600"
                 >
                   About
                 </Link>
@@ -85,100 +82,91 @@ export default function AboutPage() {
         </aside>
 
         <div className="space-y-14 md:col-span-2 md:max-w-[640px]">
-          <Section title="About">
-            <p className="text-[14px] leading-[1.6]">
-              Aurora Leonard is a filmmaker, producer, and creative with a
-              diverse career spanning film, television, theater, and commercial
-              work. From major broadcast and streaming platforms to
-              award-nominated stage performances and feature films, she brings
-              a nuanced understanding of storytelling and production across
-              mediums. Through her production company Reforest Films, she
-              channels this expansive creative foundation into purpose-driven
-              work amplifying voices of environmental stewardship and social
-              impact, crafting narratives that are as artistically rigorous as
-              they are intentional about reshaping culture more towards
-              compassion and humanity.
-            </p>
-          </Section>
+          {about.bio && (
+            <Section title="About">
+              <p className="text-[14px] leading-[1.6] whitespace-pre-line">
+                {about.bio}
+              </p>
+            </Section>
+          )}
 
-          <Section title="Awards">
-            <ul className="space-y-5 text-[14px] leading-[1.5]">
-              <Award
-                year="2023"
-                kind="LA Drama Critics Circle Award Nominee"
-                body="Featured Performance — Arthur Miller’s ‘A View from the Bridge’"
-              />
-              <Award
-                year="2024"
-                kind="Audience Choice Award Winner"
-                body="NY Dances with Films — ‘Sonny Boy’"
-              />
-              <Award
-                year="2025"
-                kind="Honorable Mention"
-                body="Ojai Film Festival — ‘Sonny Boy’"
-              />
-            </ul>
-          </Section>
+          {about.awards.length > 0 && (
+            <Section title="Awards">
+              <ul className="space-y-5 text-[14px] leading-[1.5]">
+                {about.awards.map((a, i) => (
+                  <li key={i}>
+                    <p>
+                      {a.year} – <strong className="font-semibold">{a.kind}</strong>
+                    </p>
+                    <p className="text-[#0a1f15]">{a.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
 
-          <Section title="Contact">
-            <dl className="space-y-4 text-[14px] leading-[1.5]">
-              <ContactRow label="Production:">
-                <p>
-                  <a
-                    href="mailto:hello@reforestfilms.com"
-                    className="transition-colors hover:italic hover:text-emerald-600"
-                  >
-                    hello@reforestfilms.com
-                  </a>
+          {(about.production_email || about.commercial.email) && (
+            <Section title="Contact">
+              <dl className="space-y-4 text-[14px] leading-[1.5]">
+                {about.production_email && (
+                  <ContactRow label="Production:">
+                    <p>
+                      <a
+                        href={`mailto:${about.production_email}`}
+                        className="transition-colors hover:italic hover:text-emerald-600"
+                      >
+                        {about.production_email}
+                      </a>
+                    </p>
+                  </ContactRow>
+                )}
+                {about.commercial.email && (
+                  <ContactRow label="Commercial:">
+                    <p>
+                      {about.commercial.name && `${about.commercial.name}, `}
+                      <a
+                        href={`mailto:${about.commercial.email}`}
+                        className="transition-colors hover:italic hover:text-emerald-600"
+                      >
+                        {about.commercial.email}
+                      </a>
+                    </p>
+                  </ContactRow>
+                )}
+              </dl>
+            </Section>
+          )}
+
+          {(about.reforest.body || about.reforest.links.length > 0) && (
+            <Section title="Reforest Films">
+              {about.reforest.body && (
+                <p className="text-[14px] leading-[1.6] whitespace-pre-line">
+                  {about.reforest.body}
                 </p>
-              </ContactRow>
-              <ContactRow label="Commercial:">
-                <p>
-                  Katherine Ryan,{" "}
-                  <a
-                    href="mailto:katherine@buchwald.com"
-                    className="transition-colors hover:italic hover:text-emerald-600"
-                  >
-                    katherine@buchwald.com
-                  </a>
-                </p>
-              </ContactRow>
-            </dl>
-          </Section>
+              )}
+              {about.reforest.links.length > 0 && (
+                <ul className="mt-4 space-y-1.5 text-[14px]">
+                  {about.reforest.links.map((l, i) => (
+                    <ExternalLink key={i} href={l.url}>
+                      {l.label}
+                    </ExternalLink>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          )}
 
-          <Section title="Reforest Films">
-            <p className="text-[14px] leading-[1.6]">
-              Reforest Films is a creative video production company producing
-              independent films and specializing in cinematic storytelling that
-              amplifies the impact of purpose-led brands and changemakers.
-            </p>
-            <ul className="mt-4 space-y-1.5 text-[14px]">
-              <ExternalLink href="https://www.reforestfilms.com/">
-                reforestfilms.com
-              </ExternalLink>
-              <ExternalLink href="https://www.instagram.com/reforestfilms/">
-                Instagram
-              </ExternalLink>
-              <ExternalLink href="https://www.facebook.com/people/Reforest-Films/61579531462899/">
-                Facebook
-              </ExternalLink>
-            </ul>
-          </Section>
-
-          <Section title="Connect">
-            <ul className="space-y-1.5 text-[14px]">
-              <ExternalLink href="https://www.instagram.com/auroraleonard/">
-                Instagram
-              </ExternalLink>
-              <ExternalLink href="https://www.linkedin.com/in/aurora-leonard/">
-                LinkedIn
-              </ExternalLink>
-              <ExternalLink href="https://www.facebook.com/AuroraLeonardReforestFilms/">
-                Facebook
-              </ExternalLink>
-            </ul>
-          </Section>
+          {about.connect_links.length > 0 && (
+            <Section title="Connect">
+              <ul className="space-y-1.5 text-[14px]">
+                {about.connect_links.map((l, i) => (
+                  <ExternalLink key={i} href={l.url}>
+                    {l.label}
+                  </ExternalLink>
+                ))}
+              </ul>
+            </Section>
+          )}
         </div>
       </div>
     </main>
@@ -214,25 +202,6 @@ function ContactRow({
       <dt className="font-semibold">{label}</dt>
       <dd className="mt-0.5">{children}</dd>
     </div>
-  );
-}
-
-function Award({
-  year,
-  kind,
-  body,
-}: {
-  year: string;
-  kind: string;
-  body: string;
-}) {
-  return (
-    <li>
-      <p>
-        {year} – <strong className="font-semibold">{kind}</strong>
-      </p>
-      <p className="text-[#0a1f15]">{body}</p>
-    </li>
   );
 }
 

@@ -240,9 +240,11 @@ export default async function Home({
           <SmoothScroll infinite />
           <ViewToggle />
           <FilterBar />
-          <OnlyGridView>
-            <SeedControls seed={seed} x={x} y={y} move={moveStr} />
-          </OnlyGridView>
+          {process.env.VERCEL_ENV !== "production" && (
+            <OnlyGridView>
+              <SeedControls seed={seed} x={x} y={y} move={moveStr} />
+            </OnlyGridView>
+          )}
           <ScrollIndicator />
 
           <nav

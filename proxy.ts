@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isAllowedAdmin } from "./app/lib/admin";
 
 /**
  * Auth gate for /dashboard and /api/videos*. Refreshes the Supabase session
@@ -39,7 +40,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const url = request.nextUrl;
-  const isApi = url.pathname.startsWith("/api/videos");
+  const isApi =
+    url.pathname.startsWith("/api/videos") ||
+    url.pathname.startsWith("/api/about");
   const isDashboard = url.pathname.startsWith("/dashboard");
   if (!isApi && !isDashboard) return response;
 
@@ -53,8 +56,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirect);
   }
 
-  const allowed = process.env.ALLOWED_ADMIN_EMAIL?.toLowerCase();
-  if (!allowed || user.email?.toLowerCase() !== allowed) {
+  if (!isAllowedAdmin(user.email)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -64,5 +66,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   // Only run the proxy where it matters. Static assets, images, and the
   // public homepage skip it entirely.
-  matcher: ["/dashboard/:path*", "/api/videos/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/api/videos/:path*",
+    "/api/about/:path*",
+  ],
 };

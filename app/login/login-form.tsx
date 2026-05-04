@@ -53,6 +53,8 @@ export function LoginForm({
       <label className="flex flex-col gap-2 text-[12px] uppercase tracking-wide text-neutral-700">
         Email
         <input
+          id="email"
+          name="email"
           type="email"
           required
           autoComplete="email"

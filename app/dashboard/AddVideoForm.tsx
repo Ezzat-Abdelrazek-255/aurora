@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Spinner } from "../components/Spinner";
 
 type Category = "film-tv" | "commercial" | "music";
 type Role = "Producer" | "Talent";
@@ -112,7 +113,10 @@ export function AddVideoForm() {
           disabled={pending || !url.trim() || !name.trim()}
           className="box-border inline-flex h-[38px] items-center justify-center px-3 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:opacity-60 disabled:opacity-30"
         >
-          {pending ? "Adding…" : "Add"}
+          <span className="inline-flex items-center gap-2">
+            {pending && <Spinner size={12} />}
+            {pending ? "Adding" : "Add"}
+          </span>
         </button>
       </Field>
       {error && (
