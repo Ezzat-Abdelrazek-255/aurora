@@ -11,7 +11,6 @@ export const metadata: Metadata = {
 
 type SearchParams = Promise<{
   next?: string;
-  sent?: string;
   error?: string;
 }>;
 
@@ -46,11 +45,11 @@ export default async function LoginPage({
           className="mt-3 text-[13px] leading-relaxed text-neutral-600"
           style={{ fontFamily: "var(--font-roslindale-text)" }}
         >
-          Enter your email and we'll send you a one-time link. Only the
-          allow-listed admin email can access the dashboard.
+          Sign in with your email and password. Only allow-listed admin
+          accounts can access the dashboard.
         </p>
 
-        <LoginForm next={next} sent={sp.sent === "1"} error={sp.error} />
+        <LoginForm next={next} error={sp.error} />
       </div>
     </main>
   );
