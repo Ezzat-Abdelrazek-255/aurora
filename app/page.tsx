@@ -220,7 +220,7 @@ export default async function Home({
   };
 
   return (
-    <main className="relative bg-white text-[#040d08]">
+    <main className="relative isolate bg-white text-[#040d08]">
       <JsonLd id="ld-person" data={personJsonLd} />
       <JsonLd id="ld-website" data={websiteJsonLd} />
       <style
@@ -248,7 +248,7 @@ export default async function Home({
           <ScrollIndicator />
 
           <nav
-            className="pointer-events-auto fixed left-4 top-6 z-40 font-serif text-[24px] leading-[1.2] md:left-6 md:top-8 md:text-[26px] lg:left-10"
+            className="pointer-events-auto fixed left-4 top-6 z-40 font-serif text-[24px] leading-[1.2] mix-blend-difference text-white md:left-6 md:top-8 md:text-[26px] lg:left-10"
             aria-label="Primary"
           >
             <p className="font-bold tracking-tight">Aurora Leonard</p>
@@ -256,7 +256,7 @@ export default async function Home({
               <li>
                 <Link
                   href="/about"
-                  className="transition-colors hover:italic hover:text-emerald-600"
+                  className="transition-colors hover:italic hover:text-emerald-400"
                 >
                   About
                 </Link>
