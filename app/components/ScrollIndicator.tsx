@@ -11,9 +11,12 @@ export function ScrollIndicator() {
 
   useEffect(() => {
     let period = 0;
+    let observed: HTMLElement[] = [];
+    const resizeObs = new ResizeObserver(() => measure());
+
     const measure = () => {
-      const sections = document.querySelectorAll<HTMLElement>(
-        "[data-loop-section]"
+      const sections = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-loop-section]")
       );
       if (sections.length >= 2) {
         period = sections[1].offsetTop - sections[0].offsetTop;
@@ -22,8 +25,21 @@ export function ScrollIndicator() {
       } else {
         period = document.documentElement.scrollHeight - window.innerHeight;
       }
+      // Re-target the ResizeObserver if the section nodes changed
+      // (e.g. switching between list and grid layouts unmounts/remounts them).
+      if (
+        sections.length !== observed.length ||
+        sections.some((el, i) => el !== observed[i])
+      ) {
+        resizeObs.disconnect();
+        sections.forEach((el) => resizeObs.observe(el));
+        observed = sections;
+      }
     };
     measure();
+
+    const mo = new MutationObserver(measure);
+    mo.observe(document.body, { childList: true, subtree: true });
 
     let lastTextProgress = -1;
     let raf = 0;
@@ -45,15 +61,12 @@ export function ScrollIndicator() {
     };
     raf = requestAnimationFrame(tick);
 
-    const resizeObs = new ResizeObserver(measure);
-    document
-      .querySelectorAll<HTMLElement>("[data-loop-section]")
-      .forEach((el) => resizeObs.observe(el));
     window.addEventListener("resize", measure);
 
     return () => {
       cancelAnimationFrame(raf);
       resizeObs.disconnect();
+      mo.disconnect();
       window.removeEventListener("resize", measure);
     };
   }, []);
