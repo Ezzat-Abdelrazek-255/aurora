@@ -9,8 +9,35 @@ import type {
   AboutLink,
 } from "../../lib/about";
 
-const eq = (a: unknown, b: unknown) =>
-  JSON.stringify(a) === JSON.stringify(b);
+// Deep structural equality for plain JSON-shaped values (objects, arrays,
+// primitives). Used to derive the `dirty` state by comparing the form data
+// against the saved baseline. Order-sensitive for arrays; order-insensitive
+// for objects (keys are compared as a set).
+function eq(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  const aArr = Array.isArray(a);
+  const bArr = Array.isArray(b);
+  if (aArr !== bArr) return false;
+  if (aArr && bArr) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!eq(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const aKeys = Object.keys(ao);
+  const bKeys = Object.keys(bo);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(bo, k)) return false;
+    if (!eq(ao[k], bo[k])) return false;
+  }
+  return true;
+}
 
 const stripEmptyAwards = (xs: AboutAward[]) =>
   xs.filter((x) => x.year || x.kind || x.body);
@@ -53,7 +80,7 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
       reforestBody,
       reforestLinks,
       connect,
-      any: bio || awards || contact || reforest || connect,
+      hasChanges: bio || awards || contact || reforest || connect,
     };
   }, [data, baseline]);
 
@@ -84,12 +111,12 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (dirty.any) save();
+    if (dirty.hasChanges) save();
   };
 
   // Ctrl+S / Cmd+S to save.
-  const dirtyRef = useRef(dirty.any);
-  dirtyRef.current = dirty.any;
+  const dirtyRef = useRef(dirty.hasChanges);
+  dirtyRef.current = dirty.hasChanges;
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
@@ -105,18 +132,18 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
   // Tab close / hard reload — browser-native warning (custom UI not allowed
   // by the spec for beforeunload).
   useEffect(() => {
-    if (!dirty.any) return;
+    if (!dirty.hasChanges) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty.any]);
+  }, [dirty.hasChanges]);
 
   // In-app navigation — intercept anchor clicks so we can show our own modal.
   useEffect(() => {
-    if (!dirty.any) return;
+    if (!dirty.hasChanges) return;
     const handler = (e: MouseEvent) => {
       if (e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -142,7 +169,7 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
     };
     document.addEventListener("click", handler, true);
     return () => document.removeEventListener("click", handler, true);
-  }, [dirty.any]);
+  }, [dirty.hasChanges]);
 
   const reset = {
     bio: () => setData({ ...data, bio: baseline.bio }),
@@ -360,7 +387,7 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
         <div className="min-h-[16px] text-[12px] text-neutral-600">
           {error ? (
             <span className="text-red-700">Save failed: {error}</span>
-          ) : dirty.any ? (
+          ) : dirty.hasChanges ? (
             <span className="text-neutral-700">
               Unsaved changes
               <span className="ml-2 text-[11px] text-neutral-500">
@@ -373,7 +400,7 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
         </div>
         <button
           type="submit"
-          disabled={pending || !dirty.any}
+          disabled={pending || !dirty.hasChanges}
           className="inline-flex h-[38px] items-center gap-2 rounded-md bg-[#040d08] px-4 text-[12px] uppercase leading-none tracking-wider text-white transition hover:opacity-90 disabled:opacity-40"
         >
           {pending && <Spinner size={12} />}

@@ -16,6 +16,12 @@ export function FilterBar() {
   // Auto-switch to list view while a search is active. Snapshot the view at
   // the moment typing starts; restore it only if it was grid (otherwise the
   // user was already on list and we leave them there).
+  //
+  // Refs (not state) because we don't want re-renders when the snapshot
+  // changes — only the state transition (empty → non-empty or vice versa)
+  // should trigger setView. The `wasEmpty === isEmpty` guard ensures we
+  // only react to that transition, not to every keystroke that keeps the
+  // query non-empty.
   const previousViewRef = useRef<ViewMode | null>(null);
   const previousQueryRef = useRef(filter.query);
   useEffect(() => {
