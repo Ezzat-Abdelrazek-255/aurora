@@ -1,10 +1,56 @@
 "use client";
 
-import { LayoutGrid, List } from "lucide-react";
 import { useView } from "./ViewProvider";
 
 const BUTTON_PX = 32;
 const GAP_PX = 2;
+
+// Inlined Lucide icons (LayoutGrid + List). Avoids pulling lucide-react for
+// two glyphs. Keep the size/strokeWidth defaults consistent with the rest of
+// the UI (15px / 2).
+function LayoutGridIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </svg>
+  );
+}
+
+function ListIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+      <path d="M3 6h.01" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M8 6h13" />
+    </svg>
+  );
+}
 
 export function ViewToggle() {
   const { view, setView } = useView();
@@ -43,7 +89,7 @@ export function ViewToggle() {
           transition: "color 0.3s var(--ease-primary)",
         }}
       >
-        <LayoutGrid size={15} strokeWidth={2} aria-hidden="true" />
+        <LayoutGridIcon />
       </button>
 
       <button
@@ -60,7 +106,7 @@ export function ViewToggle() {
           transition: "color 0.3s var(--ease-primary)",
         }}
       >
-        <List size={15} strokeWidth={2} aria-hidden="true" />
+        <ListIcon />
       </button>
     </div>
   );
