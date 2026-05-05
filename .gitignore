@@ -43,6 +43,7 @@ next-env.d.ts
 # font source archives — only the extracted .ttf files in app/fonts are tracked
 roslindale.zip
 test-results/
+tests/e2e/.auth/
 
 # archives + backup junk
 *.zip
