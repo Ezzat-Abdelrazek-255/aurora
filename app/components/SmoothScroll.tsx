@@ -2,6 +2,7 @@
 
 import Lenis from "lenis";
 import { useEffect } from "react";
+import { getLoopPeriod } from "../lib/scroll";
 
 type Props = { infinite?: boolean };
 
@@ -19,21 +20,16 @@ export function SmoothScroll({ infinite = false }: Props) {
       // of the full document. Combined with two identical [data-loop-section]
       // copies in the DOM, content at scroll=0 and scroll=limit is pixel-for-
       // pixel identical — so the modulo reset is visually invisible.
+      //
+      // The getter runs every frame, so layout changes (list↔grid toggle,
+      // viewport resize) are picked up automatically.
       Object.defineProperty(lenis.dimensions, "limit", {
         configurable: true,
         get(this: { scrollWidth: number; scrollHeight: number; width: number; height: number }) {
-          const sections = document.querySelectorAll<HTMLElement>(
-            "[data-loop-section]"
-          );
-          let y = this.scrollHeight - this.height;
-          if (sections.length >= 2) {
-            y = sections[1].offsetTop - sections[0].offsetTop;
-          } else if (sections.length === 1) {
-            y = sections[0].offsetHeight;
-          }
+          const period = getLoopPeriod();
           return {
             x: this.scrollWidth - this.width,
-            y,
+            y: period > 0 ? period : this.scrollHeight - this.height,
           };
         },
       });

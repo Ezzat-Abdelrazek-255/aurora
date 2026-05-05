@@ -28,10 +28,9 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { useOpenVideo } from "../components/ModalProvider";
 import { createSupabaseBrowserClient } from "../lib/supabase/client";
+import { CATEGORIES, ROLES, type Category, type Role } from "../lib/videos";
 
 type Status = "pending" | "processing" | "ready" | "failed";
-type Category = "film-tv" | "commercial" | "music";
-type Role = "Producer" | "Talent";
 
 export type DashboardRow = {
   vimeo_id: string;
@@ -48,13 +47,6 @@ export type DashboardRow = {
 
 type Draft = { name: string; category: Category; role: Role };
 type RowBusy = "delete" | "retry" | "edit" | undefined;
-
-const CATEGORIES: { value: Category; label: string }[] = [
-  { value: "film-tv", label: "Film/TV" },
-  { value: "commercial", label: "Commercial" },
-  { value: "music", label: "Music" },
-];
-const ROLES: Role[] = ["Producer", "Talent"];
 
 const STORAGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/clips/`;
 
@@ -320,6 +312,9 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
                       hash: r.vimeo_hash,
                       name: r.name,
                       role: r.role,
+                      // Dashboard preview doesn't track per-video aspect; default
+                      // to 16:9. Homepage modal uses the persisted value.
+                      aspect: 16 / 9,
                       thumb: r.poster_url,
                     })
                   }

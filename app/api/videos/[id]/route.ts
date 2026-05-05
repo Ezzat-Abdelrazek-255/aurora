@@ -1,39 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
-import { isAllowedAdmin } from "../../../lib/admin";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { requireAdmin } from "../../../lib/admin";
 import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
+import { categorySchema, roleSchema } from "../../../lib/videos";
 import type { processVideo } from "../../../../trigger/processVideo";
 
 const PatchBody = z
   .object({
     name: z.string().min(1).max(120).optional(),
-    category: z.enum(["film-tv", "commercial", "music"]).optional(),
-    role: z.enum(["Producer", "Talent"]).optional(),
+    category: categorySchema.optional(),
+    role: roleSchema.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: "At least one field is required",
   });
-
-async function requireAdmin(): Promise<
-  { ok: true } | { ok: false; res: NextResponse }
-> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isAllowedAdmin(user.email)) {
-    return {
-      ok: false,
-      res: NextResponse.json(
-        { error: user ? "forbidden" : "unauthorized" },
-        { status: user ? 403 : 401 },
-      ),
-    };
-  }
-  return { ok: true };
-}
 
 type Ctx = { params: Promise<{ id: string }> };
 

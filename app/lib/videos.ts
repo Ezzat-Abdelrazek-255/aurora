@@ -1,7 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
 
-export type Category = "film-tv" | "commercial" | "music";
-export type Role = "Producer" | "Talent";
+export const CATEGORIES = [
+  { value: "film-tv", label: "Film/TV" },
+  { value: "commercial", label: "Commercials" },
+  { value: "music", label: "Music" },
+] as const;
+
+export const ROLES = ["Producer", "Talent"] as const;
+
+export type Category = (typeof CATEGORIES)[number]["value"];
+export type Role = (typeof ROLES)[number];
+
+export const CATEGORY_VALUES = CATEGORIES.map((c) => c.value) as readonly Category[];
+
+// Single source of truth for category / role validation. Routes that accept
+// these values import the schema instead of re-declaring `z.enum([...])`.
+export const categorySchema = z.enum(
+  CATEGORIES.map((c) => c.value) as [Category, ...Category[]],
+);
+export const roleSchema = z.enum(ROLES as unknown as [Role, ...Role[]]);
 
 /**
  * Server-side shape of a video. The `clipUrl` and `posterUrl` fields are
@@ -18,12 +36,6 @@ export type Video = {
   posterUrl: string;
   aspect: number;
 };
-
-export const CATEGORIES: { value: Category; label: string }[] = [
-  { value: "film-tv", label: "Film/TV" },
-  { value: "commercial", label: "Commercials" },
-  { value: "music", label: "Music" },
-];
 
 type VideoRow = {
   vimeo_id: string;

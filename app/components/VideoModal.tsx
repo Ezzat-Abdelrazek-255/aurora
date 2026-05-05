@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type ModalVideo = {
-  id: string;
-  hash: string;
-  name: string;
-  role: "Producer" | "Talent";
-  thumb?: string | null;
-};
+import type { ModalVideo } from "./ModalProvider";
 
 type Props = {
   video: ModalVideo | null;
@@ -72,12 +65,12 @@ export function VideoModal({ video, onClose }: Props) {
       </button>
 
       <div
-        className="relative flex w-full max-w-[1400px] flex-col"
+        className="relative flex w-full max-w-[1000px] flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div
           className="relative w-full overflow-hidden bg-neutral-900"
-          style={{ aspectRatio: 16 / 9 }}
+          style={{ aspectRatio: video.aspect, maxHeight: "80vh" }}
         >
           {video.thumb && (
             /* eslint-disable-next-line @next/next/no-img-element */

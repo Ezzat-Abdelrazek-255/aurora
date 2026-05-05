@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { isAllowedAdmin } from "../../../lib/admin";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { requireAdmin } from "../../../lib/admin";
 import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
 
 const Body = z.object({
@@ -15,25 +14,6 @@ const Body = z.object({
     .min(1)
     .max(500),
 });
-
-async function requireAdmin(): Promise<
-  { ok: true } | { ok: false; res: NextResponse }
-> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isAllowedAdmin(user.email)) {
-    return {
-      ok: false,
-      res: NextResponse.json(
-        { error: user ? "forbidden" : "unauthorized" },
-        { status: user ? 403 : 401 },
-      ),
-    };
-  }
-  return { ok: true };
-}
 
 /**
  * POST /api/videos/reorder

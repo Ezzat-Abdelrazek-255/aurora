@@ -1,13 +1,16 @@
 "use client";
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import type { Role } from "../lib/videos";
 import { VideoModal } from "./VideoModal";
 
-type ModalVideo = {
+export type ModalVideo = {
   id: string;
   hash: string;
   name: string;
-  role: "Producer" | "Talent";
+  role: Role;
+  /** Aspect ratio (width / height) — drives the modal's video frame size. */
+  aspect: number;
   thumb?: string | null;
 };
 

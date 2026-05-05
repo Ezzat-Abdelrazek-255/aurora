@@ -3,17 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Spinner } from "../components/Spinner";
-
-type Category = "film-tv" | "commercial" | "music";
-type Role = "Producer" | "Talent";
-
-const CATEGORIES: { value: Category; label: string }[] = [
-  { value: "film-tv", label: "Film/TV" },
-  { value: "commercial", label: "Commercial" },
-  { value: "music", label: "Music" },
-];
-
-const ROLES: Role[] = ["Producer", "Talent"];
+import { CATEGORIES, ROLES, type Category, type Role } from "../lib/videos";
 
 export function AddVideoForm() {
   const router = useRouter();

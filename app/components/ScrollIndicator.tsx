@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { getLoopPeriod } from "../lib/scroll";
 
 const TRACK_HEIGHT = 96; // px
 const THUMB_HEIGHT = 28; // px
@@ -15,18 +16,12 @@ export function ScrollIndicator() {
     const resizeObs = new ResizeObserver(() => measure());
 
     const measure = () => {
-      const sections = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-loop-section]")
-      );
-      if (sections.length >= 2) {
-        period = sections[1].offsetTop - sections[0].offsetTop;
-      } else if (sections.length === 1) {
-        period = sections[0].offsetHeight;
-      } else {
-        period = document.documentElement.scrollHeight - window.innerHeight;
-      }
+      period = getLoopPeriod();
       // Re-target the ResizeObserver if the section nodes changed
       // (e.g. switching between list and grid layouts unmounts/remounts them).
+      const sections = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-loop-section]"),
+      );
       if (
         sections.length !== observed.length ||
         sections.some((el, i) => el !== observed[i])

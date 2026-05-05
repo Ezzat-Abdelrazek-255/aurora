@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
-import { isAllowedAdmin } from "../../lib/admin";
-import { createSupabaseServerClient } from "../../lib/supabase/server";
+import { requireAdmin } from "../../lib/admin";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
+import { categorySchema, roleSchema } from "../../lib/videos";
 import type { processVideo } from "../../../trigger/processVideo";
 
 const Body = z.object({
@@ -15,33 +15,9 @@ const Body = z.object({
       "Must be a Vimeo URL of the form https://vimeo.com/<id>/<hash>",
     ),
   name: z.string().min(1).max(120),
-  category: z.enum(["film-tv", "commercial", "music"]),
-  role: z.enum(["Producer", "Talent"]),
+  category: categorySchema,
+  role: roleSchema,
 });
-
-/**
- * Defense-in-depth allow-list check. The proxy already gates this route,
- * but every API handler re-verifies so an attacker bypassing the proxy
- * (e.g. via direct invocation) still 403s.
- */
-async function requireAdmin(): Promise<
-  { ok: true } | { ok: false; res: NextResponse }
-> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isAllowedAdmin(user.email)) {
-    return {
-      ok: false,
-      res: NextResponse.json(
-        { error: user ? "forbidden" : "unauthorized" },
-        { status: user ? 403 : 401 },
-      ),
-    };
-  }
-  return { ok: true };
-}
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
