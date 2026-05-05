@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { randomSeed } from "../lib/seed";
+import { useView } from "./ViewProvider";
 
 type Props = {
   seed: string;
@@ -18,6 +19,7 @@ const setVars = (xPx: number, yPct: number) => {
 };
 
 export function SeedControls({ seed, x, y, move }: Props) {
+  const { view } = useView();
   const router = useRouter();
   const currentParams = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -75,6 +77,9 @@ export function SeedControls({ seed, x, y, move }: Props) {
       // ignored
     }
   };
+
+  // The seed/layout knobs only make sense for the grid view; hide in list.
+  if (view !== "grid") return null;
 
   return (
     <div

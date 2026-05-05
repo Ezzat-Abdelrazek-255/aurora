@@ -3,7 +3,11 @@
 import { type ReactNode } from "react";
 import { useView } from "./ViewProvider";
 
-export function ViewSwitcher({
+/**
+ * Renders the active layout (grid or list) based on `useView()`. Pure
+ * presentational — the toggle UI lives in `ViewToggle`.
+ */
+export function ActiveView({
   grid,
   list,
 }: {
@@ -12,10 +16,4 @@ export function ViewSwitcher({
 }) {
   const { view } = useView();
   return view === "grid" ? <>{grid}</> : <>{list}</>;
-}
-
-export function OnlyGridView({ children }: { children: ReactNode }) {
-  const { view } = useView();
-  if (view !== "grid") return null;
-  return <>{children}</>;
 }

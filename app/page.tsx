@@ -9,12 +9,12 @@ import { SeedControls } from "./components/SeedControls";
 import { SmoothScroll } from "./components/SmoothScroll";
 import { VideoCard } from "./components/VideoCard";
 import { ViewProvider, type ViewMode } from "./components/ViewProvider";
-import { OnlyGridView, ViewSwitcher } from "./components/ViewSwitcher";
+import { ActiveView } from "./components/ViewSwitcher";
 import { ViewToggle } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
 import { DEFAULT_SEED } from "./lib/seed";
 import { SITE } from "./lib/site";
-import { listReadyVideos, type Category } from "./lib/videos";
+import { CATEGORY_VALUES, listReadyVideos, type Category } from "./lib/videos";
 
 export const metadata: Metadata = {
   title: { absolute: SITE.title },
@@ -47,10 +47,8 @@ type SearchParams = Promise<{
   q?: string | string[];
 }>;
 
-const VALID_CATEGORIES: Category[] = ["film-tv", "commercial", "music"];
-
 function isCategory(v: string | undefined): v is Category {
-  return !!v && (VALID_CATEGORIES as string[]).includes(v);
+  return CATEGORY_VALUES.includes(v as Category);
 }
 
 const DEFAULT_X = 80; // px
@@ -241,9 +239,7 @@ export default async function Home({
           <ViewToggle />
           <FilterBar />
           {process.env.VERCEL_ENV !== "production" && (
-            <OnlyGridView>
-              <SeedControls seed={seed} x={x} y={y} move={moveStr} />
-            </OnlyGridView>
+            <SeedControls seed={seed} x={x} y={y} move={moveStr} />
           )}
           <ScrollIndicator />
 
@@ -264,7 +260,7 @@ export default async function Home({
             </ul>
           </nav>
 
-          <ViewSwitcher grid={gridLayout} list={listLayout} />
+          <ActiveView grid={gridLayout} list={listLayout} />
         </ViewProvider>
       </FilterProvider>
     </main>
