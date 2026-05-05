@@ -1,5 +1,6 @@
 "use client";
 
+import gsap from "gsap";
 import { useEffect, useRef, useState } from "react";
 import { useOpenVideo } from "./ModalProvider";
 
@@ -30,12 +31,73 @@ export function VideoCard({
 }: Props) {
   const openVideo = useOpenVideo();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const parallaxRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hoverRef = useRef(false);
   const reverseRafRef = useRef<number | null>(null);
   const reverseStartMsRef = useRef(0);
   const reverseStartTimeRef = useRef(0);
   const [mounted, setMounted] = useState(false);
+
+  // Image parallax: translate the inner wrapper (which is 140% of container
+  // height with a -20% top bleed) as the card moves through the viewport. We
+  // read getBoundingClientRect() per rAF instead of using ScrollTrigger
+  // because the home page runs Lenis in `infinite` mode and its modulo wrap
+  // breaks ScrollTrigger's cached absolute positions. gsap.quickTo smooths
+  // the per-frame target into a tween so it doesn't jitter.
+  useEffect(() => {
+    const container = containerRef.current;
+    const inner = parallaxRef.current;
+    if (!container || !inner) return;
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const MAX_TRAVEL = 14; // yPercent on inner; inner is 140% tall so 14% ≈ 19.6% of container
+    const setY = gsap.quickTo(inner, "yPercent", {
+      duration: 0.5,
+      ease: "power2.out",
+    });
+
+    let active = false;
+    let rafId: number | null = null;
+
+    const tick = () => {
+      rafId = null;
+      if (!active) return;
+      const rect = container.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const range = (vh + rect.height) / 2;
+      const distance = rect.top + rect.height / 2 - vh / 2;
+      const progress = Math.max(-1, Math.min(1, distance / range));
+      // progress > 0 → card is below center → image shifts up (showing top)
+      setY(-progress * MAX_TRAVEL);
+      rafId = requestAnimationFrame(tick);
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            if (!active) {
+              active = true;
+              if (rafId === null) rafId = requestAnimationFrame(tick);
+            }
+          } else {
+            active = false;
+          }
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(container);
+
+    return () => {
+      io.disconnect();
+      active = false;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      gsap.set(inner, { yPercent: 0 });
+    };
+  }, []);
 
   // Lazy-mount the <video> element so we don't ship 14 preloads at once.
   useEffect(() => {
@@ -135,8 +197,9 @@ export function VideoCard({
 
   const onClick = () => {
     // Pass the same poster URL the card is rendering so the modal placeholder
-    // matches while the Vimeo iframe boots.
-    openVideo({ id, hash, name, role, thumb: posterUrl });
+    // matches while the Vimeo iframe boots. Aspect drives the modal frame so
+    // it matches the source video instead of forcing 16/9.
+    openVideo({ id, hash, name, role, aspect, thumb: posterUrl });
   };
 
   const preview = (
@@ -145,35 +208,43 @@ export function VideoCard({
       className="relative w-full overflow-hidden bg-neutral-200"
       style={{ aspectRatio: aspect }}
     >
-      {/* First-frame JPG (Supabase Storage). Rendered eagerly underneath as
-          the resting visual; the <video> below uses the same URL as its
-          poster so there's no visual swap when it mounts on top. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={posterUrl}
-        alt=""
-        aria-hidden="true"
-        loading="eager"
-        className="absolute inset-0 h-full w-full object-cover"
-        draggable={false}
-        onContextMenu={(e) => e.preventDefault()}
-      />
-      {mounted && (
-        <video
-          ref={videoRef}
-          src={clipUrl}
-          poster={posterUrl}
-          muted
-          playsInline
-          preload="metadata"
-          disablePictureInPicture
-          controlsList="nodownload nofullscreen noremoteplayback"
-          onEnded={onEnded}
+      {/* Parallax wrapper: 140% tall with -20% top bleed so its yPercent can
+          travel ±~14 without exposing the container edges. */}
+      <div
+        ref={parallaxRef}
+        className="absolute inset-x-0"
+        style={{ top: "-20%", height: "140%", willChange: "transform" }}
+      >
+        {/* First-frame JPG (Supabase Storage). Rendered eagerly underneath as
+            the resting visual; the <video> below uses the same URL as its
+            poster so there's no visual swap when it mounts on top. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={posterUrl}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
           className="absolute inset-0 h-full w-full object-cover"
-          onContextMenu={(e) => e.preventDefault()}
           draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
         />
-      )}
+        {mounted && (
+          <video
+            ref={videoRef}
+            src={clipUrl}
+            poster={posterUrl}
+            muted
+            playsInline
+            preload="metadata"
+            disablePictureInPicture
+            controlsList="nodownload nofullscreen noremoteplayback"
+            onEnded={onEnded}
+            className="absolute inset-0 h-full w-full object-cover"
+            onContextMenu={(e) => e.preventDefault()}
+            draggable={false}
+          />
+        )}
+      </div>
     </div>
   );
 
