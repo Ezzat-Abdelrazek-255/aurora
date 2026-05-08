@@ -26,11 +26,48 @@ test.describe("admin — add video flow", () => {
   let createdVimeoId: string | null = null;
 
   test.afterEach(async ({ request }) => {
-    // Belt-and-braces cleanup. The happy-path test deletes via UI, but if
-    // anything before that step throws we still want the row gone.
+    // Per-test cleanup. The happy-path test deletes via UI, but if anything
+    // before that step throws we still want the row gone. Errors here are
+    // logged rather than swallowed so we notice when DELETE fails.
     if (createdVimeoId) {
-      await request.delete(`/api/videos/${createdVimeoId}`).catch(() => {});
+      const id = createdVimeoId;
       createdVimeoId = null;
+      try {
+        const res = await request.delete(`/api/videos/${id}`);
+        if (!res.ok() && res.status() !== 404) {
+          console.warn(
+            `afterEach DELETE /api/videos/${id} failed: ${res.status()}`,
+          );
+        }
+      } catch (e) {
+        console.warn(`afterEach DELETE /api/videos/${id} threw:`, e);
+      }
+    }
+  });
+
+  // Self-healing safety net: if any test in this suite crashed before
+  // afterEach ran (or its DELETE failed), sweep up every leftover row whose
+  // name still has the test prefix. Idempotent — does nothing on a clean run.
+  test.afterAll(async ({ request }) => {
+    const list = await request.get("/api/videos");
+    if (!list.ok()) return;
+    const body = (await list.json()) as {
+      videos: { vimeo_id: string; name: string }[];
+    };
+    const orphans = body.videos.filter((v) =>
+      v.name.startsWith(TEST_NAME_PREFIX),
+    );
+    if (orphans.length === 0) return;
+    console.warn(
+      `afterAll sweeping ${orphans.length} orphan playwright row(s)`,
+    );
+    for (const row of orphans) {
+      const res = await request.delete(`/api/videos/${row.vimeo_id}`);
+      if (!res.ok()) {
+        console.warn(
+          `afterAll DELETE /api/videos/${row.vimeo_id} failed: ${res.status()}`,
+        );
+      }
     }
   });
 
