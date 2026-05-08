@@ -287,6 +287,31 @@ export function VideoCard({
   const labelClass =
     "text-[11px] tracking-wide text-[#0a1f15] transition-colors group-hover:text-emerald-600";
 
+  // Split "Brand, Work Title" into a small prefix (the brand/series) and a
+  // larger title (the specific work). Both stay inside the same <h3> so the
+  // heading's accessible name remains the full, comma-joined string.
+  const commaIdx = name.indexOf(",");
+  const titlePrefix = commaIdx >= 0 ? name.slice(0, commaIdx + 1).trim() : null;
+  const titleMain = commaIdx >= 0 ? name.slice(commaIdx + 1).trim() : name;
+
+  const titleSizes =
+    variant === "list"
+      ? { prefix: "text-[14px] md:text-[15px]", main: "text-[26px] md:text-[32px]" }
+      : { prefix: "text-[13px] md:text-[14px]", main: "text-[26px] md:text-[30px]" };
+
+  const titleNode = (
+    <h3 className="font-serif tracking-tight text-[#040d08] transition-colors group-hover:text-emerald-600">
+      {titlePrefix && (
+        <span className={`block leading-[1.15] ${titleSizes.prefix}`}>
+          {titlePrefix}
+        </span>
+      )}
+      <span className={`block leading-[1.05] ${titleSizes.main}`}>
+        {titleMain}
+      </span>
+    </h3>
+  );
+
   if (variant === "list") {
     return (
       <div
@@ -297,9 +322,7 @@ export function VideoCard({
       >
         <div className="w-full shrink-0 md:w-[340px]">{preview}</div>
         <div className="min-w-0 pt-1">
-          <h3 className="font-serif text-[24px] leading-[1.1] tracking-tight text-[#040d08] transition-colors group-hover:text-emerald-600 md:text-[28px]">
-            {name}
-          </h3>
+          {titleNode}
           <p className={`mt-1 ${labelClass}`} style={captionFont}>
             {role}
           </p>
@@ -316,12 +339,12 @@ export function VideoCard({
       className="group cursor-pointer select-none transition-transform duration-300 ease-out hover:scale-[1.05]"
     >
       {preview}
-      <h3 className="font-serif mt-3 text-[26px] leading-[1.05] tracking-tight text-[#040d08] transition-colors group-hover:text-emerald-600 md:text-[28px]">
-        {name}
-      </h3>
-      <p className={`mt-1 ${labelClass}`} style={captionFont}>
-        {role}
-      </p>
+      <div className="mt-3">
+        {titleNode}
+        <p className={`mt-1 ${labelClass}`} style={captionFont}>
+          {role}
+        </p>
+      </div>
     </div>
   );
 }
