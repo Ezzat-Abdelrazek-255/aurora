@@ -17,7 +17,7 @@ test.describe("admin fixture — API", () => {
     // Authed, but the schema rejects this. Confirms requireAdmin() let us
     // through and Zod is what's gating the body — not auth.
     const res = await request.post("/api/videos", {
-      data: { url: "not-a-url", name: "", category: "music", role: "Talent" },
+      data: { url: "not-a-url", name: "", category: "brands", role: "Talent" },
     });
     expect(res.status()).toBe(400);
     const body = (await res.json()) as { error?: string };

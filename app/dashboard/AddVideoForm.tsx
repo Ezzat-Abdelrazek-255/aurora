@@ -9,7 +9,7 @@ export function AddVideoForm() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<Category>("commercial");
+  const [category, setCategory] = useState<Category>("brands");
   const [role, setRole] = useState<Role>("Talent");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function AddVideoForm() {
     }
     setUrl("");
     setName("");
-    setCategory("commercial");
+    setCategory("brands");
     setRole("Talent");
     // Refresh server data — VideoTable's realtime subscription will also pick
     // up the new pending row, but a refresh guarantees the SSR list is in sync.

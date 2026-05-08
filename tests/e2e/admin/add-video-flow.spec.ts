@@ -84,7 +84,7 @@ test.describe("admin — add video flow", () => {
       .getByLabel("Vimeo URL")
       .fill(`https://vimeo.com/${vimeoId}/${hash}`);
     await page.getByLabel("Name").fill(name);
-    await page.getByLabel("Category").selectOption("commercial");
+    await page.getByLabel("Category").selectOption("brands");
     await page.getByLabel("Role").selectOption("Producer");
 
     await page.getByRole("button", { name: /^add video$/i }).click();

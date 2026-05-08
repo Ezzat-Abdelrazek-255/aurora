@@ -14,7 +14,7 @@ type Payload = {
   // Optional metadata for fresh inserts (when the API route hasn't pre-created
   // the row). For the production flow the API route inserts the row first.
   name?: string;
-  category?: "film-tv" | "commercial" | "music";
+  category?: "brands" | "originals" | "theatre";
   role?: "Producer" | "Talent";
 };
 

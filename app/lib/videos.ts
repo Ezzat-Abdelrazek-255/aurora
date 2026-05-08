@@ -2,9 +2,9 @@
 import { z } from "zod";
 
 export const CATEGORIES = [
-  { value: "film-tv", label: "Film/TV" },
-  { value: "commercial", label: "Commercials" },
-  { value: "music", label: "Music" },
+  { value: "brands", label: "Brands" },
+  { value: "originals", label: "Originals" },
+  { value: "theatre", label: "Theatre" },
 ] as const;
 
 export const ROLES = ["Producer", "Talent"] as const;

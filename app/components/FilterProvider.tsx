@@ -31,8 +31,8 @@ type Ctx = {
 
 const FilterContext = createContext<Ctx | null>(null);
 
-// Lookup table so the user can type "music" or "commercials" and hit those
-// videos via the visible category label, not just the slug.
+// Lookup table so the user can type the visible category label (e.g.
+// "originals", "brands") and hit those videos, not just the slug.
 const CATEGORY_LABEL: Record<Category, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.value, c.label]),
 ) as Record<Category, string>;
@@ -95,8 +95,8 @@ export function FilterProvider({
       // case-insensitive). Examples:
       //   "nike"         → all Nike videos
       //   "nike talent"  → Nike videos with Talent role
-      //   "music"        → music-category videos (matches the label)
-      //   "apple comm"   → Apple commercials (token2 hits "Commercials")
+      //   "originals"    → originals-category videos (matches the label)
+      //   "apple brands" → Apple-brand entries (token2 hits "Brands")
       matches: (v) => {
         if (filter.category !== "all" && v.category !== filter.category) {
           return false;
