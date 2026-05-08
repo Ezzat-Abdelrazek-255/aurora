@@ -12,15 +12,13 @@
  * Reads NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from
  * .env.local. Requires ffmpeg on PATH.
  */
-import { readFileSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { writeFile, readFile, unlink } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
-
-const VIMEO_UA =
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+import { join } from "node:path";
+import { createAdminClient } from "./lib/supabase.mjs";
+import { getVimeoThumbUrl, VIMEO_UA } from "./lib/vimeo.mjs";
 
 const args = process.argv.slice(2);
 const allBlack = args.includes("--all-black");
@@ -32,25 +30,7 @@ if (!targetId && !allBlack) {
   process.exit(1);
 }
 
-const env = Object.fromEntries(
-  readFileSync(resolve(process.cwd(), ".env.local"), "utf8")
-    .split("\n")
-    .filter((l) => l && !l.startsWith("#") && l.includes("="))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    }),
-);
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error("Missing Supabase env vars in .env.local");
-  process.exit(1);
-}
-
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = createAdminClient();
 
 function run(bin, args, opts = {}) {
   return new Promise((resolveP, reject) => {
@@ -84,75 +64,6 @@ async function meanLuma(imagePath) {
   let sum = 0;
   for (let i = 0; i < buf.length; i++) sum += buf[i];
   return sum / buf.length;
-}
-
-function extractPlayerConfig(html) {
-  const start = html.indexOf("window.playerConfig");
-  if (start < 0) throw new Error("playerConfig not found");
-  const eq = html.indexOf("=", start);
-  const jsonStart = html.indexOf("{", eq);
-  let depth = 0,
-    i = jsonStart,
-    inStr = false,
-    esc = false;
-  for (; i < html.length; i++) {
-    const c = html[i];
-    if (esc) {
-      esc = false;
-      continue;
-    }
-    if (c === "\\") {
-      esc = true;
-      continue;
-    }
-    if (c === '"') {
-      inStr = !inStr;
-      continue;
-    }
-    if (inStr) continue;
-    if (c === "{") depth++;
-    else if (c === "}") {
-      depth--;
-      if (depth === 0) {
-        i++;
-        break;
-      }
-    }
-  }
-  return JSON.parse(html.slice(jsonStart, i));
-}
-
-function pickThumbUrl(cfg) {
-  const video = cfg?.video;
-  if (!video) return null;
-  if (video.thumbs) {
-    let best = -1;
-    let url = null;
-    for (const [k, v] of Object.entries(video.thumbs)) {
-      if (typeof v !== "string" || !/^https?:\/\//.test(v)) continue;
-      const n = Number(k);
-      if (Number.isFinite(n) && n > best) {
-        best = n;
-        url = v;
-      }
-    }
-    if (url) return url;
-  }
-  const base = video.thumbnail_url;
-  if (typeof base === "string" && /^https?:\/\//.test(base)) {
-    return /\.(jpe?g|webp|png)$/i.test(base) ? base : `${base}_1280x720.jpg`;
-  }
-  return null;
-}
-
-async function getVimeoThumbUrl(vimeoId, vimeoHash) {
-  const url = `https://player.vimeo.com/video/${vimeoId}?h=${vimeoHash}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": VIMEO_UA, Referer: "https://vimeo.com/" },
-  });
-  if (!res.ok) throw new Error(`Vimeo embed fetch ${vimeoId}: ${res.status}`);
-  const html = await res.text();
-  return pickThumbUrl(extractPlayerConfig(html));
 }
 
 async function swapOne(row) {

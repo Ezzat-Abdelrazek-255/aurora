@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "../../../lib/admin";
 import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
 import { categorySchema, roleSchema } from "../../../lib/videos";
+import { revalidateVideos } from "../../../lib/videos-server";
 import type { processVideo } from "../../../../trigger/processVideo";
 
 const PatchBody = z
@@ -53,6 +54,7 @@ export async function DELETE(_request: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: delErr.message }, { status: 500 });
   }
 
+  revalidateVideos();
   return new NextResponse(null, { status: 204 });
 }
 
@@ -92,6 +94,7 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       category: row.category,
       role: row.role,
     });
+    revalidateVideos();
     return NextResponse.json({ ok: true, runId: handle.id }, { status: 202 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -138,5 +141,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   if (!data) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
+  revalidateVideos();
   return NextResponse.json({ ok: true, video: data });
 }

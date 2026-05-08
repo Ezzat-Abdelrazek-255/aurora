@@ -65,6 +65,7 @@ export function VideoCard({
     let active = false;
     let rafId: number | null = null;
     let primed = false;
+    let lastTarget = Number.NaN;
 
     const tick = () => {
       rafId = null;
@@ -82,8 +83,12 @@ export function VideoCard({
         // card at load).
         primed = true;
         gsap.set(inner, { yPercent: target });
-      } else {
+        lastTarget = target;
+      } else if (Math.abs(target - lastTarget) > 0.01) {
+        // Skip the quickTo call when the scroll-derived target hasn't moved.
+        // Avoids waking GSAP's tween machinery 60×/sec per card while idle.
         setY(target);
+        lastTarget = target;
       }
       rafId = requestAnimationFrame(tick);
     };

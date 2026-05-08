@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { getLoopPeriod } from "../lib/scroll";
+import { useView } from "./ViewProvider";
 
 const TRACK_HEIGHT = 96; // px
 const THUMB_HEIGHT = 28; // px
@@ -9,32 +10,22 @@ const THUMB_HEIGHT = 28; // px
 export function ScrollIndicator() {
   const thumbRef = useRef<HTMLDivElement | null>(null);
   const numRef = useRef<HTMLSpanElement | null>(null);
+  const { view } = useView();
 
   useEffect(() => {
-    let period = 0;
-    let observed: HTMLElement[] = [];
-    const resizeObs = new ResizeObserver(() => measure());
-
-    const measure = () => {
+    // Re-target the section nodes whenever the view (grid↔list) changes —
+    // ActiveView remounts the sections, so the previous nodes are stale.
+    // Resize is handled by ResizeObserver below; we used to also run a
+    // body-wide MutationObserver here, but it fired on every video mount,
+    // hover toggle, and modal open without ever changing the section set.
+    let period = getLoopPeriod();
+    const resizeObs = new ResizeObserver(() => {
       period = getLoopPeriod();
-      // Re-target the ResizeObserver if the section nodes changed
-      // (e.g. switching between list and grid layouts unmounts/remounts them).
-      const sections = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-loop-section]"),
-      );
-      if (
-        sections.length !== observed.length ||
-        sections.some((el, i) => el !== observed[i])
-      ) {
-        resizeObs.disconnect();
-        sections.forEach((el) => resizeObs.observe(el));
-        observed = sections;
-      }
-    };
-    measure();
-
-    const mo = new MutationObserver(measure);
-    mo.observe(document.body, { childList: true, subtree: true });
+    });
+    const sections = document.querySelectorAll<HTMLElement>(
+      "[data-loop-section]",
+    );
+    sections.forEach((el) => resizeObs.observe(el));
 
     let lastTextProgress = -1;
     let raf = 0;
@@ -46,7 +37,6 @@ export function ScrollIndicator() {
       if (thumb) {
         thumb.style.transform = `translate3d(0, ${top}px, 0)`;
       }
-      // Numeric label updates less often than per-frame to avoid layout thrash
       const pct = Math.round(p * 100);
       if (pct !== lastTextProgress && numRef.current) {
         numRef.current.textContent = String(pct).padStart(2, "0");
@@ -56,15 +46,17 @@ export function ScrollIndicator() {
     };
     raf = requestAnimationFrame(tick);
 
-    window.addEventListener("resize", measure);
+    const onResize = () => {
+      period = getLoopPeriod();
+    };
+    window.addEventListener("resize", onResize);
 
     return () => {
       cancelAnimationFrame(raf);
       resizeObs.disconnect();
-      mo.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", onResize);
     };
-  }, []);
+  }, [view]);
 
   return (
     <div

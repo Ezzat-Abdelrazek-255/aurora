@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "../../lib/admin";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 import { categorySchema, roleSchema } from "../../lib/videos";
+import { revalidateVideos } from "../../lib/videos-server";
 import type { processVideo } from "../../../trigger/processVideo";
 
 const VIMEO_URL_RE = /^https?:\/\/vimeo\.com\/(\d+)\/([a-f0-9]+)/i;
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
       category: parsed.data.category,
       role: parsed.data.role,
     });
+    revalidateVideos();
     return NextResponse.json(
       { ok: true, vimeo_id: vimeoId, runId: handle.id },
       { status: 202 },

@@ -5,8 +5,6 @@ import { SmoothScroll } from "../components/SmoothScroll";
 import { getAboutContent } from "../lib/about";
 import { SITE } from "../lib/site";
 
-export const dynamic = "force-dynamic";
-
 const aboutDescription =
   "About Aurora Leonard — filmmaker and producer behind Reforest Films. Award-nominated work spanning film, television, theater, and commercials, with a focus on purpose-led storytelling.";
 

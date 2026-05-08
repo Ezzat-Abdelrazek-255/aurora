@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "../../../lib/admin";
 import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
+import { revalidateVideos } from "../../../lib/videos-server";
 
 const Body = z.object({
   positions: z
@@ -60,5 +61,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  revalidateVideos();
   return NextResponse.json({ ok: true, count: updates.length });
 }

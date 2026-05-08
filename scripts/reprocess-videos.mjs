@@ -15,10 +15,9 @@
  * TRIGGER_SECRET_KEY from .env.local. Uses the service-role key so it sees
  * every row (not just status='ready') and bypasses RLS.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
 import { tasks } from "@trigger.dev/sdk";
+import { loadEnv } from "./lib/env.mjs";
+import { createAdminClient } from "./lib/supabase.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -28,42 +27,14 @@ const args = Object.fromEntries(
   }),
 );
 
-const envPath = resolve(process.cwd(), ".env.local");
-let env = {};
-try {
-  env = Object.fromEntries(
-    readFileSync(envPath, "utf8")
-      .split("\n")
-      .filter((l) => l && !l.startsWith("#") && l.includes("="))
-      .map((l) => {
-        const i = l.indexOf("=");
-        return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-      }),
-  );
-} catch {
-  // Fall back to process.env if .env.local is missing (e.g. CI).
-}
-const get = (k) => env[k] ?? process.env[k];
-
-const supabaseUrl = get("NEXT_PUBLIC_SUPABASE_URL");
-const serviceKey = get("SUPABASE_SERVICE_ROLE_KEY");
-const triggerKey = get("TRIGGER_SECRET_KEY");
-
-if (!supabaseUrl || !serviceKey) {
-  console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local",
-  );
-  process.exit(1);
-}
-if (!triggerKey && !args["dry-run"]) {
+const env = loadEnv();
+if (!env.TRIGGER_SECRET_KEY && !args["dry-run"]) {
   console.error("Missing TRIGGER_SECRET_KEY in .env.local (needed to trigger)");
   process.exit(1);
 }
-if (triggerKey) process.env.TRIGGER_SECRET_KEY = triggerKey;
+if (env.TRIGGER_SECRET_KEY) process.env.TRIGGER_SECRET_KEY = env.TRIGGER_SECRET_KEY;
 
-const supabase = createClient(supabaseUrl, serviceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = createAdminClient(env);
 
 const status = args.status ?? "ready";
 const onlyId = args.id;

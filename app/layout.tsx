@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Suspense } from "react";
 import { ModalProvider } from "./components/ModalProvider";
 import { SITE } from "./lib/site";
 import "./globals.css";
@@ -101,7 +102,12 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://vod-progressive.akamaized.net" />
       </head>
       <body className="min-h-full">
-        <ModalProvider>{children}</ModalProvider>
+        <ModalProvider>
+          {/* Suspense boundary lets pages with uncached data (auth checks,
+              searchParams) render dynamically while the static layout shell
+              prerenders. Required by cacheComponents. */}
+          <Suspense fallback={null}>{children}</Suspense>
+        </ModalProvider>
         <div className="grain" aria-hidden="true" />
       </body>
     </html>

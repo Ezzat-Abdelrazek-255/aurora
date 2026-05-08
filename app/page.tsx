@@ -14,7 +14,8 @@ import { ViewToggle } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
 import { DEFAULT_SEED } from "./lib/seed";
 import { SITE } from "./lib/site";
-import { CATEGORY_VALUES, listReadyVideos, type Category } from "./lib/videos";
+import { CATEGORY_VALUES, type Category } from "./lib/videos";
+import { listReadyVideos } from "./lib/videos-server";
 
 export const metadata: Metadata = {
   title: { absolute: SITE.title },

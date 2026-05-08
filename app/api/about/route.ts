@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { revalidateAbout } from "../../lib/about";
 import { requireAdmin } from "../../lib/admin";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
@@ -50,5 +51,6 @@ export async function PUT(request: NextRequest) {
       { status: 500 },
     );
   }
+  revalidateAbout();
   return NextResponse.json({ ok: true });
 }
