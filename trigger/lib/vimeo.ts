@@ -143,3 +143,26 @@ export async function getStreamData(
   const cfg = extractPlayerConfig(html);
   return { hlsUrl: pickHlsUrl(cfg), thumbUrl: pickThumbUrl(cfg) };
 }
+
+/**
+ * Pull the embed-hash for a video from its public vimeo.com page. Lets us
+ * accept bare-ID URLs (https://vimeo.com/<id>) in admin input even when the
+ * video is unlisted — the public watch page exposes the player iframe URL,
+ * which carries the hash as `?h=…`. Returns null if the page is gone or the
+ * hash isn't on it (e.g. password-gated videos).
+ */
+export async function resolveVimeoHash(
+  vimeoId: string,
+): Promise<string | null> {
+  if (!/^\d+$/.test(vimeoId)) return null;
+  const res = await fetch(`https://vimeo.com/${vimeoId}`, {
+    headers: { "User-Agent": UA },
+  });
+  if (!res.ok) return null;
+  const html = await res.text();
+  const re = new RegExp(
+    `player\\.vimeo\\.com/video/${vimeoId}\\?h=([a-f0-9]+)`,
+    "i",
+  );
+  return html.match(re)?.[1] ?? null;
+}

@@ -5,9 +5,13 @@ import { requireAdmin } from "../../lib/admin";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 import { categorySchema, roleSchema } from "../../lib/videos";
 import { revalidateVideos } from "../../lib/videos-server";
+import { resolveVimeoHash } from "../../../trigger/lib/vimeo";
 import type { processVideo } from "../../../trigger/processVideo";
 
-const VIMEO_URL_RE = /^https?:\/\/vimeo\.com\/(\d+)\/([a-f0-9]+)/i;
+// Accept either form: https://vimeo.com/<id> or https://vimeo.com/<id>/<hash>.
+// Bare-ID URLs (the address-bar form for unlisted videos) get their hash
+// resolved server-side by scraping the public watch page.
+const VIMEO_URL_RE = /^https?:\/\/vimeo\.com\/(\d+)(?:\/([a-f0-9]+))?/i;
 
 const Body = z.object({
   url: z
@@ -15,7 +19,7 @@ const Body = z.object({
     .url()
     .refine(
       (s) => VIMEO_URL_RE.test(s),
-      "Must be a Vimeo URL of the form https://vimeo.com/<id>/<hash>",
+      "Must be a Vimeo URL like https://vimeo.com/<id> or https://vimeo.com/<id>/<hash>",
     ),
   name: z.string().min(1).max(120),
   category: categorySchema,
@@ -39,7 +43,18 @@ export async function POST(request: NextRequest) {
   if (!m) {
     return NextResponse.json({ error: "could_not_parse_vimeo_url" }, { status: 400 });
   }
-  const [, vimeoId, vimeoHash] = m;
+  const [, vimeoId, urlHash] = m;
+  const vimeoHash = urlHash ?? (await resolveVimeoHash(vimeoId));
+  if (!vimeoHash) {
+    return NextResponse.json(
+      {
+        error: "could_not_resolve_hash",
+        message:
+          "Vimeo didn't return an embed hash for this video. The video may be private/password-gated; paste the full https://vimeo.com/<id>/<hash> URL instead.",
+      },
+      { status: 400 },
+    );
+  }
 
   const admin = createSupabaseAdminClient();
 

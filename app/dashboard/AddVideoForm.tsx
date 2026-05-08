@@ -52,7 +52,7 @@ export function AddVideoForm() {
           required
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://vimeo.com/1234567/abcd1234ef"
+          placeholder="https://vimeo.com/1234567 (or .../abcd1234ef)"
           className={inputCls}
         />
       </Field>
