@@ -15,6 +15,14 @@ export async function fetchVimeoEmbed(
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Referer: "https://vimeo.com/" },
   });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(
+      `Vimeo refused server-side embed for ${vimeoId} (HTTP ${res.status}). ` +
+        "On Vimeo: open the video → Privacy/Embed and set 'Where can this " +
+        "be embedded?' to 'Anywhere' (or allow-list this site's domain), " +
+        "and confirm 'Who can watch?' isn't 'Private' / password-gated.",
+    );
+  }
   if (!res.ok) throw new Error(`Vimeo embed fetch ${vimeoId}: ${res.status}`);
   return res.text();
 }
