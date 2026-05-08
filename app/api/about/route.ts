@@ -5,6 +5,11 @@ import { requireAdmin } from "../../lib/admin";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
 const Link = z.object({ label: z.string().max(120), url: z.string().url() });
+const Contact = z.object({
+  label: z.string().max(120),
+  name: z.string().max(200),
+  email: z.string().max(200),
+});
 const Body = z.object({
   bio: z.string().max(8000),
   awards: z
@@ -16,11 +21,7 @@ const Body = z.object({
       }),
     )
     .max(50),
-  production_email: z.string().max(200),
-  commercial: z.object({
-    name: z.string().max(200),
-    email: z.string().max(200),
-  }),
+  contacts: z.array(Contact).max(20),
   reforest: z.object({
     body: z.string().max(4000),
     links: z.array(Link).max(20),

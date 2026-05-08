@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "../../components/Spinner";
 import type {
   AboutAward,
+  AboutContact,
   AboutContent,
   AboutLink,
 } from "../../lib/about";
@@ -43,10 +44,13 @@ const stripEmptyAwards = (xs: AboutAward[]) =>
   xs.filter((x) => x.year || x.kind || x.body);
 const stripEmptyLinks = (xs: AboutLink[]) =>
   xs.filter((x) => x.label || x.url);
+const stripEmptyContacts = (xs: AboutContact[]) =>
+  xs.filter((x) => x.label || x.name || x.email);
 
 const normalize = (c: AboutContent): AboutContent => ({
   ...c,
   awards: stripEmptyAwards(c.awards),
+  contacts: stripEmptyContacts(c.contacts),
   reforest: { ...c.reforest, links: stripEmptyLinks(c.reforest.links) },
   connect_links: stripEmptyLinks(c.connect_links),
 });
@@ -65,9 +69,7 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
     const b = normalize(baseline);
     const bio = a.bio !== b.bio;
     const awards = !eq(a.awards, b.awards);
-    const production = a.production_email !== b.production_email;
-    const commercial = !eq(a.commercial, b.commercial);
-    const contact = production || commercial;
+    const contact = !eq(a.contacts, b.contacts);
     const reforestBody = a.reforest.body !== b.reforest.body;
     const reforestLinks = !eq(a.reforest.links, b.reforest.links);
     const reforest = reforestBody || reforestLinks;
@@ -174,12 +176,7 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
   const reset = {
     bio: () => setData({ ...data, bio: baseline.bio }),
     awards: () => setData({ ...data, awards: baseline.awards }),
-    contact: () =>
-      setData({
-        ...data,
-        production_email: baseline.production_email,
-        commercial: baseline.commercial,
-      }),
+    contact: () => setData({ ...data, contacts: baseline.contacts }),
     reforest: () => setData({ ...data, reforest: baseline.reforest }),
     reforestBody: () =>
       setData({
@@ -263,48 +260,28 @@ export function AboutEditor({ initial }: { initial: AboutContent }) {
         </ul>
       </Block>
 
-      <Block title="Contact" dirty={dirty.contact} onReset={reset.contact}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Production email">
-            <input
-              type="email"
-              value={data.production_email}
-              onChange={(e) =>
-                setData({ ...data, production_email: e.target.value })
-              }
-              className={inputCls}
-              placeholder="hello@example.com"
-            />
-          </Field>
-          <Field label="Commercial contact name">
-            <input
-              type="text"
-              value={data.commercial.name}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  commercial: { ...data.commercial, name: e.target.value },
-                })
-              }
-              className={inputCls}
-              placeholder="Agent name"
-            />
-          </Field>
-          <Field label="Commercial contact email" className="md:col-span-2">
-            <input
-              type="email"
-              value={data.commercial.email}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  commercial: { ...data.commercial, email: e.target.value },
-                })
-              }
-              className={inputCls}
-              placeholder="agent@example.com"
-            />
-          </Field>
-        </div>
+      <Block
+        title="Contact"
+        dirty={dirty.contact}
+        onReset={reset.contact}
+        action={
+          <AddButton
+            onClick={() =>
+              setData({
+                ...data,
+                contacts: [
+                  { label: "", name: "", email: "" },
+                  ...data.contacts,
+                ],
+              })
+            }
+          />
+        }
+      >
+        <ContactList
+          contacts={data.contacts}
+          onChange={(contacts) => setData({ ...data, contacts })}
+        />
       </Block>
 
       <Block
@@ -517,6 +494,69 @@ function AwardRow({
       />
       <RemoveButton onClick={onRemove} />
     </li>
+  );
+}
+
+function ContactList({
+  contacts,
+  onChange,
+}: {
+  contacts: AboutContact[];
+  onChange: (contacts: AboutContact[]) => void;
+}) {
+  if (contacts.length === 0) return <Empty>No contacts yet.</Empty>;
+  return (
+    <ul className="space-y-3">
+      {contacts.map((c, i) => (
+        <li
+          key={i}
+          className="grid grid-cols-[1fr_1fr_1.5fr_auto] gap-3 rounded-md border border-neutral-200 p-3"
+        >
+          <input
+            type="text"
+            value={c.label}
+            onChange={(e) =>
+              onChange(
+                contacts.map((x, j) =>
+                  j === i ? { ...x, label: e.target.value } : x,
+                ),
+              )
+            }
+            placeholder="Label (e.g. Production)"
+            className={inputCls}
+          />
+          <input
+            type="text"
+            value={c.name}
+            onChange={(e) =>
+              onChange(
+                contacts.map((x, j) =>
+                  j === i ? { ...x, name: e.target.value } : x,
+                ),
+              )
+            }
+            placeholder="Name (optional)"
+            className={inputCls}
+          />
+          <input
+            type="email"
+            value={c.email}
+            onChange={(e) =>
+              onChange(
+                contacts.map((x, j) =>
+                  j === i ? { ...x, email: e.target.value } : x,
+                ),
+              )
+            }
+            placeholder="email@example.com"
+            className={inputCls}
+          />
+          <RemoveButton
+            onClick={() => onChange(contacts.filter((_, j) => j !== i))}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 

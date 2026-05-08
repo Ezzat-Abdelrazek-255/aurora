@@ -9,12 +9,12 @@ export function revalidateAbout() {
 
 export type AboutLink = { label: string; url: string };
 export type AboutAward = { year: string; kind: string; body: string };
+export type AboutContact = { label: string; name: string; email: string };
 
 export type AboutContent = {
   bio: string;
   awards: AboutAward[];
-  production_email: string;
-  commercial: { name: string; email: string };
+  contacts: AboutContact[];
   reforest: { body: string; links: AboutLink[] };
   connect_links: AboutLink[];
 };
@@ -22,11 +22,33 @@ export type AboutContent = {
 export const DEFAULT_ABOUT: AboutContent = {
   bio: "",
   awards: [],
-  production_email: "",
-  commercial: { name: "", email: "" },
+  contacts: [],
   reforest: { body: "", links: [] },
   connect_links: [],
 };
+
+type LegacyAbout = Partial<AboutContent> & {
+  production_email?: string;
+  commercial?: { name?: string; email?: string };
+};
+
+// Synthesize the contacts list from legacy fixed fields when present, so
+// content saved before contacts became a dynamic list still shows up.
+function migrateContacts(raw: LegacyAbout): AboutContact[] {
+  if (raw.contacts && raw.contacts.length > 0) return raw.contacts;
+  const out: AboutContact[] = [];
+  if (raw.production_email) {
+    out.push({ label: "Production", name: "", email: raw.production_email });
+  }
+  if (raw.commercial?.email) {
+    out.push({
+      label: "Commercial",
+      name: raw.commercial.name ?? "",
+      email: raw.commercial.email,
+    });
+  }
+  return out;
+}
 
 /** Cached at 'hours' since content rarely changes; PUT /api/about revalidates. */
 export async function getAboutContent(): Promise<AboutContent> {
@@ -41,5 +63,10 @@ export async function getAboutContent(): Promise<AboutContent> {
     .eq("id", 1)
     .maybeSingle();
   if (error || !data) return DEFAULT_ABOUT;
-  return { ...DEFAULT_ABOUT, ...(data.content as Partial<AboutContent>) };
+  const raw = data.content as LegacyAbout;
+  return {
+    ...DEFAULT_ABOUT,
+    ...raw,
+    contacts: migrateContacts(raw),
+  };
 }

@@ -103,34 +103,24 @@ export default async function AboutPage() {
             </Section>
           )}
 
-          {(about.production_email || about.commercial.email) && (
+          {about.contacts.length > 0 && (
             <Section title="Contact">
               <dl className="space-y-4 text-[14px] leading-[1.5]">
-                {about.production_email && (
-                  <ContactRow label="Production:">
+                {about.contacts.map((c, i) => (
+                  <ContactRow key={i} label={c.label ? `${c.label}:` : ""}>
                     <p>
-                      <a
-                        href={`mailto:${about.production_email}`}
-                        className="transition-colors hover:italic hover:text-emerald-600"
-                      >
-                        {about.production_email}
-                      </a>
+                      {c.name && `${c.name}, `}
+                      {c.email && (
+                        <a
+                          href={`mailto:${c.email}`}
+                          className="transition-colors hover:italic hover:text-emerald-600"
+                        >
+                          {c.email}
+                        </a>
+                      )}
                     </p>
                   </ContactRow>
-                )}
-                {about.commercial.email && (
-                  <ContactRow label="Commercial:">
-                    <p>
-                      {about.commercial.name && `${about.commercial.name}, `}
-                      <a
-                        href={`mailto:${about.commercial.email}`}
-                        className="transition-colors hover:italic hover:text-emerald-600"
-                      >
-                        {about.commercial.email}
-                      </a>
-                    </p>
-                  </ContactRow>
-                )}
+                ))}
               </dl>
             </Section>
           )}
@@ -197,8 +187,8 @@ function ContactRow({
 }) {
   return (
     <div>
-      <dt className="font-semibold">{label}</dt>
-      <dd className="mt-0.5">{children}</dd>
+      {label && <dt className="font-semibold">{label}</dt>}
+      <dd className={label ? "mt-0.5" : ""}>{children}</dd>
     </div>
   );
 }
