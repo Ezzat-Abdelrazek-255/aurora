@@ -13,19 +13,15 @@ export function ScrollIndicator() {
   const { view } = useView();
 
   useEffect(() => {
-    // Re-target the section nodes whenever the view (grid↔list) changes —
-    // ActiveView remounts the sections, so the previous nodes are stale.
-    // Resize is handled by ResizeObserver below; we used to also run a
-    // body-wide MutationObserver here, but it fired on every video mount,
-    // hover toggle, and modal open without ever changing the section set.
+    // ActiveView remounts the [data-loop-section] nodes on view change, so
+    // we re-target the ResizeObserver each time `view` flips.
     let period = getLoopPeriod();
     const resizeObs = new ResizeObserver(() => {
       period = getLoopPeriod();
     });
-    const sections = document.querySelectorAll<HTMLElement>(
-      "[data-loop-section]",
-    );
-    sections.forEach((el) => resizeObs.observe(el));
+    document
+      .querySelectorAll<HTMLElement>("[data-loop-section]")
+      .forEach((el) => resizeObs.observe(el));
 
     let lastTextProgress = -1;
     let raf = 0;
@@ -46,15 +42,9 @@ export function ScrollIndicator() {
     };
     raf = requestAnimationFrame(tick);
 
-    const onResize = () => {
-      period = getLoopPeriod();
-    };
-    window.addEventListener("resize", onResize);
-
     return () => {
       cancelAnimationFrame(raf);
       resizeObs.disconnect();
-      window.removeEventListener("resize", onResize);
     };
   }, [view]);
 

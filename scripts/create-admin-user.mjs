@@ -11,9 +11,7 @@
  * Safe to run multiple times — if the user already exists, prints a notice
  * and exits 0.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "./lib/supabase.mjs";
 
 const email = process.argv[2];
 if (!email) {
@@ -21,27 +19,7 @@ if (!email) {
   process.exit(1);
 }
 
-const envPath = resolve(process.cwd(), ".env.local");
-const env = Object.fromEntries(
-  readFileSync(envPath, "utf8")
-    .split("\n")
-    .filter((l) => l && !l.startsWith("#") && l.includes("="))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    }),
-);
-
-const url = env.NEXT_PUBLIC_SUPABASE_URL;
-const key = env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local");
-  process.exit(1);
-}
-
-const supabase = createClient(url, key, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = createAdminClient();
 
 const { data, error } = await supabase.auth.admin.createUser({
   email,

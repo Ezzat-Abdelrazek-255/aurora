@@ -1,10 +1,6 @@
-// JS port of trigger/lib/vimeo.ts for use from .mjs scripts. Kept in sync
-// manually — the trigger version is TypeScript and doesn't strip-import
-// cleanly from Node, so the duplication is intentional.
-//
-// Helpers: fetch a Vimeo embed page, extract `window.playerConfig`, and pick
-// the largest pre-rendered thumbnail URL. (HLS extraction is omitted here —
-// scripts don't currently need it.)
+// Mirror of trigger/lib/vimeo.ts — keep in sync. Duplicated rather than
+// shared because the trigger version is TypeScript and Node can't directly
+// import .ts from .mjs scripts without a build step.
 
 export const VIMEO_UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";

@@ -16,6 +16,7 @@
  * every row (not just status='ready') and bypasses RLS.
  */
 import { tasks } from "@trigger.dev/sdk";
+import { mapPool } from "./lib/concurrency.mjs";
 import { loadEnv } from "./lib/env.mjs";
 import { createAdminClient } from "./lib/supabase.mjs";
 
@@ -77,31 +78,23 @@ if (args["dry-run"]) {
 // The task itself flips status to 'processing' when it starts, so we skip a
 // preemptive update — keeps rows visible on the homepage until the worker
 // actually picks them up.
-const results = await Promise.allSettled(
-  rows.map((r) =>
-    tasks.trigger("process-video", {
+const results = await mapPool(rows, 8, async (r) => {
+  const label = `${r.vimeo_id} "${r.name}" [${r.status}]`;
+  try {
+    const handle = await tasks.trigger("process-video", {
       vimeoId: r.vimeo_id,
       vimeoHash: r.vimeo_hash,
       name: r.name,
       category: r.category,
       role: r.role,
-    }),
-  ),
-);
-
-let ok = 0;
-let fail = 0;
-results.forEach((res, i) => {
-  const r = rows[i];
-  const label = `${r.vimeo_id} "${r.name}" [${r.status}]`;
-  if (res.status === "fulfilled") {
-    console.log(`  ✓ ${label} → run ${res.value.id}`);
-    ok++;
-  } else {
-    const e = res.reason;
+    });
+    console.log(`  ✓ ${label} → run ${handle.id}`);
+    return true;
+  } catch (e) {
     console.error(`  ✗ ${label} — ${e instanceof Error ? e.message : e}`);
-    fail++;
+    return false;
   }
 });
 
-console.log(`\nDone. Triggered ${ok} run(s), ${fail} failure(s).`);
+const ok = results.filter(Boolean).length;
+console.log(`\nDone. Triggered ${ok} run(s), ${results.length - ok} failure(s).`);

@@ -1,13 +1,10 @@
-// Server-only data + cache surface for the videos collection. Imports
-// next/cache, so this file must NEVER be imported (transitively) from a
-// "use client" module — see app/lib/videos.ts for the client-safe split.
-import { createClient } from "@supabase/supabase-js";
+// Server-only — must not be imported from a "use client" module.
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import type { Category, Role, Video } from "./videos";
 
 export const VIDEOS_TAG = "videos";
 
-/** Mark the cached homepage video list stale (stale-while-revalidate). */
 export function revalidateVideos() {
   revalidateTag(VIDEOS_TAG, "max");
 }
@@ -23,27 +20,26 @@ type VideoRow = {
   aspect_ratio: number | string | null;
 };
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
+// Lazy so a misconfigured env throws on first call instead of at import,
+// which would break Next's prerender introspection.
+let client: SupabaseClient | null = null;
 function readClient() {
-  if (!SUPABASE_URL || !SUPABASE_ANON) {
+  if (client) return client;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) {
     throw new Error(
       "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY",
     );
   }
-  return createClient(SUPABASE_URL, SUPABASE_ANON, {
-    auth: { persistSession: false },
-  });
+  client = createClient(url, anon, { auth: { persistSession: false } });
+  return client;
 }
 
 /**
- * Public read gated by RLS (`status = 'ready'`); anon key is sufficient.
- *
- * Cached under tag `videos` with `cacheLife('minutes')` so trigger-task
- * completions (background → ready transitions) propagate within ~5 min
- * worst case. Direct admin actions (add/edit/delete/reorder) call
- * `revalidateVideos()` from their route handlers for instant updates.
+ * Public RLS-gated read of `status = 'ready'` videos. Tag-revalidated from
+ * mutation routes; the 'minutes' lifetime is the safety net for trigger
+ * task completions, which can't call revalidateTag directly.
  */
 export async function listReadyVideos(): Promise<Video[]> {
   "use cache";

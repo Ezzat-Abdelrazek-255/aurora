@@ -65,7 +65,7 @@ export function VideoCard({
     let active = false;
     let rafId: number | null = null;
     let primed = false;
-    let lastTarget = Number.NaN;
+    let lastTarget = 0;
 
     const tick = () => {
       rafId = null;

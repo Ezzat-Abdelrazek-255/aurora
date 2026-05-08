@@ -3,7 +3,6 @@ import { createSupabaseAdminClient } from "./supabase/admin";
 
 export const ABOUT_TAG = "about";
 
-/** Mark the cached /about page stale (stale-while-revalidate). */
 export function revalidateAbout() {
   revalidateTag(ABOUT_TAG, "max");
 }
@@ -29,11 +28,7 @@ export const DEFAULT_ABOUT: AboutContent = {
   connect_links: [],
 };
 
-/**
- * Public read for /about. Cached under tag `about` with `cacheLife('hours')`
- * since content changes rarely; the admin PUT route calls
- * `revalidateAbout()` for instant updates after edits.
- */
+/** Cached at 'hours' since content rarely changes; PUT /api/about revalidates. */
 export async function getAboutContent(): Promise<AboutContent> {
   "use cache";
   cacheTag(ABOUT_TAG);

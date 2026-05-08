@@ -8,9 +8,7 @@
  * .env.local. Looks up the auth user by email, then calls
  * supabase.auth.admin.updateUserById to set the password.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "./lib/supabase.mjs";
 
 const [, , email, password] = process.argv;
 if (!email || !password) {
@@ -20,29 +18,7 @@ if (!email || !password) {
   process.exit(1);
 }
 
-const envPath = resolve(process.cwd(), ".env.local");
-const env = Object.fromEntries(
-  readFileSync(envPath, "utf8")
-    .split("\n")
-    .filter((l) => l && !l.startsWith("#") && l.includes("="))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    }),
-);
-
-const url = env.NEXT_PUBLIC_SUPABASE_URL;
-const key = env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) {
-  console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local",
-  );
-  process.exit(1);
-}
-
-const supabase = createClient(url, key, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = createAdminClient();
 
 const { data: list, error: listErr } = await supabase.auth.admin.listUsers({
   page: 1,

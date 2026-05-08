@@ -17,6 +17,7 @@ import { writeFile, readFile, unlink } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { mapPool } from "./lib/concurrency.mjs";
 import { createAdminClient } from "./lib/supabase.mjs";
 import { getVimeoThumbUrl, VIMEO_UA } from "./lib/vimeo.mjs";
 
@@ -32,34 +33,41 @@ if (!targetId && !allBlack) {
 
 const supabase = createAdminClient();
 
-function run(bin, args, opts = {}) {
+function run(bin, args, { stdin } = {}) {
   return new Promise((resolveP, reject) => {
-    const p = spawn(bin, args, opts);
+    const p = spawn(bin, args);
     let stderr = "";
     const chunks = [];
-    if (p.stdout) p.stdout.on("data", (d) => chunks.push(Buffer.from(d)));
-    if (p.stderr) p.stderr.on("data", (d) => (stderr += d.toString()));
+    p.stdout.on("data", (d) => chunks.push(Buffer.from(d)));
+    p.stderr.on("data", (d) => (stderr += d.toString()));
     p.on("exit", (code) =>
       code === 0
         ? resolveP(Buffer.concat(chunks))
         : reject(new Error(`${bin} exited ${code}\n${stderr}`)),
     );
     p.on("error", reject);
+    if (stdin) p.stdin.end(stdin);
   });
 }
 
-async function meanLuma(imagePath) {
-  const buf = await run("ffmpeg", [
-    "-loglevel",
-    "error",
-    "-i",
-    imagePath,
-    "-pix_fmt",
-    "gray",
-    "-f",
-    "rawvideo",
-    "-",
-  ]);
+/** Mean Y from a JPEG. Accepts either a file path or a Buffer (piped on stdin). */
+async function meanLuma(input) {
+  const fromBuffer = Buffer.isBuffer(input);
+  const buf = await run(
+    "ffmpeg",
+    [
+      "-loglevel",
+      "error",
+      "-i",
+      fromBuffer ? "pipe:0" : input,
+      "-pix_fmt",
+      "gray",
+      "-f",
+      "rawvideo",
+      "-",
+    ],
+    fromBuffer ? { stdin: input } : {},
+  );
   if (buf.length === 0) return NaN;
   let sum = 0;
   for (let i = 0; i < buf.length; i++) sum += buf[i];
@@ -137,22 +145,17 @@ if (allBlack) {
     .order("position");
   if (error) throw error;
 
-  const scanned = await Promise.all(
-    (data ?? [])
-      .filter((r) => r.poster_path)
-      .map(async (r) => {
-        const url = supabase.storage
-          .from("clips")
-          .getPublicUrl(r.poster_path).data.publicUrl;
-        const work = join(tmpdir(), `aurora-scan-${r.vimeo_id}.jpg`);
-        const res = await fetch(`${url}?cb=${Date.now()}`);
-        if (!res.ok) return { r, luma: NaN };
-        await writeFile(work, Buffer.from(await res.arrayBuffer()));
-        const luma = await meanLuma(work).catch(() => NaN);
-        await unlink(work).catch(() => {});
-        return { r, luma };
-      }),
-  );
+  const scanCandidates = (data ?? []).filter((r) => r.poster_path);
+  const scanned = await mapPool(scanCandidates, 6, async (r) => {
+    const url = supabase.storage
+      .from("clips")
+      .getPublicUrl(r.poster_path).data.publicUrl;
+    const res = await fetch(`${url}?cb=${Date.now()}`);
+    if (!res.ok) return { r, luma: NaN };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const luma = await meanLuma(bytes).catch(() => NaN);
+    return { r, luma };
+  });
   for (const { r, luma } of scanned) {
     console.log(
       `  ${r.vimeo_id} "${r.name}" luma=${
@@ -178,22 +181,16 @@ if (allBlack) {
   rows = [data];
 }
 
-const swapResults = await Promise.allSettled(rows.map((row) => swapOne(row)));
-let ok = 0,
-  fail = 0;
-swapResults.forEach((res, i) => {
-  if (res.status === "fulfilled" && res.value === true) {
-    ok++;
-  } else {
-    fail++;
-    if (res.status === "rejected") {
-      const row = rows[i];
-      console.error(
-        `  ✗ ${row.vimeo_id} — ${
-          res.reason instanceof Error ? res.reason.message : res.reason
-        }`,
-      );
-    }
+const swapResults = await mapPool(rows, 4, async (row) => {
+  try {
+    return { ok: await swapOne(row) === true };
+  } catch (e) {
+    console.error(
+      `  ✗ ${row.vimeo_id} — ${e instanceof Error ? e.message : e}`,
+    );
+    return { ok: false };
   }
 });
+const ok = swapResults.filter((r) => r.ok).length;
+const fail = swapResults.length - ok;
 console.log(`\nDone. Swapped ${ok}, skipped/failed ${fail}.`);

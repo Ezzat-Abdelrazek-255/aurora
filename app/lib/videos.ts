@@ -1,6 +1,4 @@
-// Client+server safe types and validation for the videos collection. The
-// data-fetching + cache-revalidation surface lives in videos-server.ts so
-// client bundles don't pull in next/cache.
+// Client+server safe types and validation for the videos collection.
 import { z } from "zod";
 
 export const CATEGORIES = [
