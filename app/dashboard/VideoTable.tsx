@@ -92,6 +92,17 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
       supabaseRef.current = createSupabaseBrowserClient();
     }
     const supabase = supabaseRef.current;
+    let cancelled = false;
+
+    // Realtime evaluates RLS per event under the role attached to the socket.
+    // Without setAuth, the channel runs as anon, and our `public reads ready`
+    // policy hides every non-ready row from the subscriber — so the
+    // pending → processing → failed transitions never reach the dashboard.
+    // Bind the session token (and refresh on auth changes) so the channel
+    // runs as `authenticated` and the `authed full access` policy applies.
+    const onAuthChange = supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.realtime.setAuth(session?.access_token ?? null);
+    });
 
     const channel = supabase
       .channel("videos-dashboard")
@@ -135,10 +146,19 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
             );
           });
         },
-      )
-      .subscribe();
+      );
+
+    // Seed setAuth from the current session before subscribing — onAuthStateChange
+    // only fires on transitions, not on the initial mount.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      supabase.realtime.setAuth(data.session?.access_token ?? null);
+      channel.subscribe();
+    });
 
     return () => {
+      cancelled = true;
+      onAuthChange.data.subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, []);
