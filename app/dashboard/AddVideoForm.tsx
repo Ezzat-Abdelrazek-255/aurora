@@ -97,18 +97,20 @@ export function AddVideoForm() {
           </select>
         </SelectShell>
       </Field>
-      <Field label={" "}>
-        <button
-          type="submit"
-          disabled={pending || !url.trim() || !name.trim()}
-          className="box-border inline-flex h-[38px] items-center justify-center px-3 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:opacity-60 disabled:opacity-30"
-        >
-          <span className="inline-flex items-center gap-2">
-            {pending && <Spinner size={12} />}
-            {pending ? "Adding" : "Add"}
-          </span>
-        </button>
-      </Field>
+      {/* Submit lives outside <Field> — wrapping it in a <label> with
+          empty text destroys the button's accessible name. `self-end`
+          aligns the row with the bottom of the input fields above. */}
+      <button
+        type="submit"
+        aria-label="Add video"
+        disabled={pending || !url.trim() || !name.trim()}
+        className="box-border inline-flex h-[38px] items-center justify-center self-end px-3 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:opacity-60 disabled:opacity-30"
+      >
+        <span className="inline-flex items-center gap-2">
+          {pending && <Spinner size={12} />}
+          {pending ? "Adding" : "Add"}
+        </span>
+      </button>
       {error && (
         <p
           aria-live="polite"
