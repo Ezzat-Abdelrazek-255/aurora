@@ -19,13 +19,31 @@ const LARGE = [96, 100];
 const ALIGNS = ["start", "center", "end"] as const;
 const FIRST_MARGINS = [0, 2, 6, 10];
 const MARGINS = [8, 10, 12, 14, 16, 20, 24];
-const DISTRIBUTIONS: Array<[number, number, number]> = [
-  [4, 5, 5],
-  [5, 4, 5],
-  [5, 5, 4],
-];
 
 const TOTAL_VIDEOS = 14;
+
+/**
+ * 3-column splits whose sum equals `total`. Each column gets either
+ * floor(total/3) or floor(total/3)+1 cards so the layout stays balanced
+ * regardless of the item count (videos + plays + future kinds).
+ */
+function distributionsFor(total: number): Array<[number, number, number]> {
+  const base = Math.floor(total / 3);
+  const extra = total - base * 3; // 0, 1, or 2
+  if (extra === 0) return [[base, base, base]];
+  if (extra === 1) {
+    return [
+      [base + 1, base, base],
+      [base, base + 1, base],
+      [base, base, base + 1],
+    ];
+  }
+  return [
+    [base + 1, base + 1, base],
+    [base + 1, base, base + 1],
+    [base, base + 1, base + 1],
+  ];
+}
 
 export function generateLayout(seed: string, total = TOTAL_VIDEOS): GeneratedLayout {
   const rand = mulberry32(seedFromString(seed));
@@ -37,7 +55,7 @@ export function generateLayout(seed: string, total = TOTAL_VIDEOS): GeneratedLay
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
 
-  const distribution = pick(DISTRIBUTIONS);
+  const distribution = pick(distributionsFor(total));
   const cols: [Cell[], Cell[], Cell[]] = [[], [], []];
   let cursor = 0;
 

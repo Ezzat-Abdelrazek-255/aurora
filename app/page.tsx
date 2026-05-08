@@ -4,6 +4,7 @@ import { FilterBar } from "./components/FilterBar";
 import { FilteredCell } from "./components/FilteredCell";
 import { FilterProvider } from "./components/FilterProvider";
 import { JsonLd } from "./components/JsonLd";
+import { PlayCard } from "./components/PlayCard";
 import { ScrollIndicator } from "./components/ScrollIndicator";
 import { SeedControls } from "./components/SeedControls";
 import { SmoothScroll } from "./components/SmoothScroll";
@@ -12,10 +13,26 @@ import { ViewProvider, type ViewMode } from "./components/ViewProvider";
 import { ActiveView } from "./components/ViewSwitcher";
 import { ViewToggle } from "./components/ViewToggle";
 import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
+import type { Play } from "./lib/plays";
+import { listReadyPlays } from "./lib/plays-server";
 import { DEFAULT_SEED } from "./lib/seed";
 import { SITE } from "./lib/site";
-import { CATEGORY_VALUES, type Category } from "./lib/videos";
+import { CATEGORY_VALUES, type Category, type Role } from "./lib/videos";
+import type { Video } from "./lib/videos";
 import { listReadyVideos } from "./lib/videos-server";
+
+// Discriminated union the grid layout iterates over. Both kinds carry the
+// fields FilteredCell needs (name/role/category) so a single FilterProvider
+// can match against the merged set.
+type GridItem =
+  | ({ kind: "video" } & Video)
+  | ({ kind: "play" } & Play);
+
+const cellMeta = (item: GridItem): { name: string; role: Role; category: Category } => ({
+  name: item.name,
+  role: item.role,
+  category: item.category,
+});
 
 export const metadata: Metadata = {
   title: { absolute: SITE.title },
@@ -87,10 +104,16 @@ export default async function Home({
   const moveStr = pickFirst(sp.move) ?? "";
   const moves = parseMoves(moveStr);
 
-  // Source of truth is now Supabase. listReadyVideos() returns each row with
-  // resolved storage URLs (clipUrl / posterUrl) and the persisted aspect.
-  const enriched = await listReadyVideos();
-  const baseLayout = generateLayout(seed, enriched.length);
+  // Source of truth is Supabase for both shapes. Plays are theatre still
+  // galleries — they share the layout pipeline with videos via a single
+  // discriminated `items` array so the filter / seeded layout / list view
+  // treat them uniformly.
+  const [videos, plays] = await Promise.all([listReadyVideos(), listReadyPlays()]);
+  const items: GridItem[] = [
+    ...videos.map((v): GridItem => ({ kind: "video", ...v })),
+    ...plays.map((p): GridItem => ({ kind: "play", ...p })),
+  ];
+  const baseLayout = generateLayout(seed, items.length);
   const cols = applyMoves(baseLayout.cols, moves);
 
   const seededOrder: number[] = [];
@@ -101,28 +124,46 @@ export default async function Home({
     }
   }
 
+  const renderItem = (item: GridItem) => {
+    if (item.kind === "video") {
+      return (
+        <VideoCard
+          id={item.id}
+          hash={item.hash}
+          name={item.name}
+          role={item.role}
+          clipUrl={item.clipUrl}
+          posterUrl={item.posterUrl}
+          aspect={item.aspect}
+        />
+      );
+    }
+    return (
+      <PlayCard
+        slug={item.slug}
+        name={item.name}
+        role={item.role}
+        coverUrl={item.coverUrl}
+        gallery={item.galleryUrls}
+        aspect={item.aspect}
+      />
+    );
+  };
+
   const renderCell = (copy: number) => (cell: Cell) => {
-    const v = enriched[cell.index];
-    if (!v) return null;
+    const item = items[cell.index];
+    if (!item) return null;
     return (
       <FilteredCell
         key={`${seed}-${copy}-${cell.index}`}
-        video={{ name: v.name, role: v.role, category: v.category }}
+        video={cellMeta(item)}
         className={`${alignClass[cell.align]} max-md:w-full! max-md:mt-0!`}
         style={{
           width: `${cell.widthPct}%`,
           marginTop: `calc(var(--layout-y, 1) * ${cell.marginUnit * 0.25}rem)`,
         }}
       >
-        <VideoCard
-          id={v.id}
-          hash={v.hash}
-          name={v.name}
-          role={v.role}
-          clipUrl={v.clipUrl}
-          posterUrl={v.posterUrl}
-          aspect={v.aspect}
-        />
+        {renderItem(item)}
       </FilteredCell>
     );
   };
@@ -155,23 +196,35 @@ export default async function Home({
           className="flex flex-col gap-y-8 py-8 pl-4 pr-4 md:gap-y-10 md:pl-[260px] md:pr-8 lg:pl-[300px]"
         >
           {seededOrder.map((idx) => {
-            const v = enriched[idx];
-            if (!v) return null;
+            const item = items[idx];
+            if (!item) return null;
             return (
               <FilteredCell
                 key={`${seed}-${copy}-list-${idx}`}
-                video={{ name: v.name, role: v.role, category: v.category }}
+                video={cellMeta(item)}
               >
-                <VideoCard
-                  id={v.id}
-                  hash={v.hash}
-                  name={v.name}
-                  role={v.role}
-                  clipUrl={v.clipUrl}
-                  posterUrl={v.posterUrl}
-                  aspect={v.aspect}
-                  variant="list"
-                />
+                {item.kind === "video" ? (
+                  <VideoCard
+                    id={item.id}
+                    hash={item.hash}
+                    name={item.name}
+                    role={item.role}
+                    clipUrl={item.clipUrl}
+                    posterUrl={item.posterUrl}
+                    aspect={item.aspect}
+                    variant="list"
+                  />
+                ) : (
+                  <PlayCard
+                    slug={item.slug}
+                    name={item.name}
+                    role={item.role}
+                    coverUrl={item.coverUrl}
+                    gallery={item.galleryUrls}
+                    aspect={item.aspect}
+                    variant="list"
+                  />
+                )}
               </FilteredCell>
             );
           })}

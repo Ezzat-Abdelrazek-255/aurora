@@ -306,7 +306,7 @@ export function VideoCard({
           {titlePrefix}
         </span>
       )}
-      <span className={`block leading-[1.05] ${titleSizes.main}`}>
+      <span className={`mt-1 block leading-[1.05] ${titleSizes.main}`}>
         {titleMain}
       </span>
     </h3>

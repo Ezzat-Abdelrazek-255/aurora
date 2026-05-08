@@ -42,6 +42,7 @@ export async function proxy(request: NextRequest) {
   const url = request.nextUrl;
   const isApi =
     url.pathname.startsWith("/api/videos") ||
+    url.pathname.startsWith("/api/plays") ||
     url.pathname.startsWith("/api/about");
   const isDashboard = url.pathname.startsWith("/dashboard");
   if (!isApi && !isDashboard) return response;
@@ -69,6 +70,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/api/videos/:path*",
+    "/api/plays/:path*",
     "/api/about/:path*",
   ],
 };
