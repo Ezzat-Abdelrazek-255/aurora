@@ -55,7 +55,6 @@ const DEFAULT_X = 80; // px
 const DEFAULT_Y = 180; // percent
 const X_MAX = 400;
 const Y_MAX = 800;
-const DEFAULT_MOVE = "";
 const COPIES = [0, 1] as const;
 
 export default async function Home({
@@ -84,13 +83,7 @@ export default async function Home({
     : "all";
   const initialQuery = (pickFirst(sp.q) ?? "").trim();
 
-  const moveParam = pickFirst(sp.move);
-  const moveStr =
-    moveParam !== undefined
-      ? moveParam
-      : seed === DEFAULT_SEED
-      ? DEFAULT_MOVE
-      : "";
+  const moveStr = pickFirst(sp.move) ?? "";
   const moves = parseMoves(moveStr);
 
   // Source of truth is now Supabase. listReadyVideos() returns each row with
@@ -143,7 +136,7 @@ export default async function Home({
           className="grid grid-cols-1 px-4 pb-8 pt-8 md:grid-cols-3 md:px-6 lg:px-10"
           style={{ columnGap: "var(--layout-x, 16px)" }}
         >
-          <div className="flex flex-col max-md:gap-y-8">{cols[0].map(renderCell(copy))}</div>
+          <div className="flex flex-col max-md:gap-y-8 md:pt-24 lg:pt-28">{cols[0].map(renderCell(copy))}</div>
           <div className="flex flex-col max-md:gap-y-8 max-md:mt-8">{cols[1].map(renderCell(copy))}</div>
           <div className="flex flex-col max-md:gap-y-8 max-md:mt-8">{cols[2].map(renderCell(copy))}</div>
         </section>

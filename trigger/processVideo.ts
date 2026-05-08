@@ -1,13 +1,12 @@
 import { spawn } from "node:child_process";
-import { readFile, mkdir, unlink } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { readFile, writeFile, mkdir, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { logger, task } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-import { getHlsUrl } from "./lib/vimeo";
+import { getStreamData, VIMEO_UA } from "./lib/vimeo";
 
 type Payload = {
   vimeoId: string;
@@ -58,6 +57,53 @@ function runProbe(bin: string, args: string[]): Promise<string> {
   });
 }
 
+function runCapture(bin: string, args: string[]): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const p = spawn(bin, args);
+    const chunks: Buffer[] = [];
+    let stderr = "";
+    p.stdout.on("data", (d) => chunks.push(Buffer.from(d)));
+    p.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    p.on("exit", (code) =>
+      code === 0
+        ? resolve(Buffer.concat(chunks))
+        : reject(new Error(`${bin} exited ${code}\n${stderr}`)),
+    );
+    p.on("error", reject);
+  });
+}
+
+/**
+ * Decode the first frame of `videoPath` to raw 8-bit grayscale and return
+ * the mean pixel value (0..255). Returns NaN if ffmpeg fails so callers can
+ * fall back to leaving the first-frame poster in place.
+ */
+async function meanLumaOfFirstFrame(
+  ffmpeg: string,
+  videoPath: string,
+): Promise<number> {
+  // -frames:v 1 + rawvideo on stdout gives us width*height bytes of Y.
+  const buf = await runCapture(ffmpeg, [
+    "-loglevel",
+    "error",
+    "-i",
+    videoPath,
+    "-frames:v",
+    "1",
+    "-pix_fmt",
+    "gray",
+    "-f",
+    "rawvideo",
+    "-",
+  ]);
+  if (buf.length === 0) return NaN;
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i];
+  return sum / buf.length;
+}
+
 export const processVideo = task({
   id: "process-video",
   maxDuration: 180,
@@ -105,13 +151,14 @@ export const processVideo = task({
     }
 
     const work = join(tmpdir(), `aurora-${vimeoId}`);
-    if (!existsSync(work)) await mkdir(work, { recursive: true });
+    await mkdir(work, { recursive: true });
     const mp4Path = join(work, `${vimeoId}.mp4`);
     const jpgPath = join(work, `${vimeoId}.jpg`);
+    const thumbRawPath = join(work, `${vimeoId}-vimeo-thumb`);
 
     try {
-      logger.log("Resolving HLS playlist");
-      const hlsUrl = await getHlsUrl(vimeoId, vimeoHash);
+      logger.log("Resolving HLS playlist + thumbnail");
+      const { hlsUrl, thumbUrl } = await getStreamData(vimeoId, vimeoHash);
 
       logger.log("Encoding 3s all-keyframe clip");
       await run(ffmpegBin(), [
@@ -155,6 +202,66 @@ export const processVideo = task({
         "3",
         jpgPath,
       ]);
+
+      // Some clips fade in from black, which leaves us with a useless
+      // all-black poster. Decode the first frame to grayscale and compute
+      // the mean pixel value; if it's near zero, swap in Vimeo's
+      // pre-rendered thumbnail instead. False positives just cost one HTTP
+      // fetch + re-encode; false negatives leave a useless poster on screen.
+      const BLACK_LUMA_THRESHOLD = 16;
+      let posterSource: "first_frame" | "vimeo_thumbnail" = "first_frame";
+      let meanLuma = NaN;
+      let probeError: string | null = null;
+      try {
+        meanLuma = await meanLumaOfFirstFrame(ffmpegBin(), mp4Path);
+      } catch (e) {
+        probeError = e instanceof Error ? e.message : String(e);
+        logger.warn(
+          `mean-luma probe failed: ${probeError}; keeping first-frame poster`,
+        );
+      }
+      logger.log(
+        `First-frame mean luma=${
+          Number.isFinite(meanLuma) ? meanLuma.toFixed(2) : "n/a"
+        } / 255 (threshold ${BLACK_LUMA_THRESHOLD}) thumbUrl=${
+          thumbUrl ? "present" : "null"
+        }`,
+      );
+
+      if (Number.isFinite(meanLuma) && meanLuma < BLACK_LUMA_THRESHOLD) {
+        if (!thumbUrl) {
+          logger.warn(
+            "First-frame poster is black but Vimeo did not expose a thumbnail; keeping first-frame poster",
+          );
+        } else {
+          logger.log(`First-frame poster is black; falling back to ${thumbUrl}`);
+          const thumbRes = await fetch(thumbUrl, {
+            headers: { "User-Agent": VIMEO_UA, Referer: "https://vimeo.com/" },
+          });
+          if (!thumbRes.ok) {
+            throw new Error(
+              `Vimeo thumbnail fetch ${vimeoId}: ${thumbRes.status}`,
+            );
+          }
+          const thumbBytes = Buffer.from(await thumbRes.arrayBuffer());
+          await writeFile(thumbRawPath, thumbBytes);
+          // Normalize through ffmpeg so the saved poster matches the clip's
+          // width and JPEG quality regardless of the original thumb format.
+          await run(ffmpegBin(), [
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            thumbRawPath,
+            "-vf",
+            "scale='min(960,iw)':-2",
+            "-q:v",
+            "3",
+            jpgPath,
+          ]);
+          posterSource = "vimeo_thumbnail";
+        }
+      }
 
       const aspectStr = await runProbe(ffprobeBin(), [
         "-v",
@@ -212,6 +319,10 @@ export const processVideo = task({
         clipUrl: pub.publicUrl,
         posterUrl: posterPub.publicUrl,
         aspect,
+        posterSource,
+        meanLuma: Number.isFinite(meanLuma) ? Number(meanLuma.toFixed(3)) : null,
+        thumbUrlPresent: thumbUrl !== null,
+        probeError,
         bytes: { mp4: mp4Bytes.byteLength, jpg: jpgBytes.byteLength },
       };
     } catch (err) {
@@ -222,7 +333,9 @@ export const processVideo = task({
     } finally {
       // Best-effort cleanup; tasks run in ephemeral containers anyway.
       await Promise.all(
-        [mp4Path, jpgPath].map((p) => unlink(p).catch(() => {})),
+        [mp4Path, jpgPath, thumbRawPath].map((p) =>
+          unlink(p).catch(() => {}),
+        ),
       );
     }
   },

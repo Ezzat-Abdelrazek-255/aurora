@@ -62,16 +62,7 @@ function readClient() {
   });
 }
 
-/**
- * Fetch every video that has finished processing. Public read is gated by RLS
- * (`status = 'ready'`) so the anon key is sufficient.
- *
- * Cache strategy: explicit fetch on each request for now. When the client
- * dashboard ships we'll wrap this in `'use cache'` + `cacheTag('videos')`
- * and call `revalidateTag('videos', 'max')` from the API routes after
- * add/delete (Next 16's two-arg revalidateTag with a cacheLife profile —
- * the single-arg form is deprecated).
- */
+/** Public read gated by RLS (`status = 'ready'`); anon key is sufficient. */
 export async function listReadyVideos(): Promise<Video[]> {
   const supabase = readClient();
   const { data, error } = await supabase
@@ -84,25 +75,18 @@ export async function listReadyVideos(): Promise<Video[]> {
 
   if (error) throw error;
 
+  const bucket = supabase.storage.from("clips");
   const rows = (data ?? []) as VideoRow[];
   return rows
     .filter((r) => r.clip_path && r.poster_path)
-    .map((r) => {
-      const clipUrl = supabase.storage
-        .from("clips")
-        .getPublicUrl(r.clip_path as string).data.publicUrl;
-      const posterUrl = supabase.storage
-        .from("clips")
-        .getPublicUrl(r.poster_path as string).data.publicUrl;
-      return {
-        id: r.vimeo_id,
-        hash: r.vimeo_hash,
-        name: r.name,
-        category: r.category,
-        role: r.role,
-        clipUrl,
-        posterUrl,
-        aspect: Number(r.aspect_ratio ?? 16 / 9),
-      } satisfies Video;
-    });
+    .map((r) => ({
+      id: r.vimeo_id,
+      hash: r.vimeo_hash,
+      name: r.name,
+      category: r.category,
+      role: r.role,
+      clipUrl: bucket.getPublicUrl(r.clip_path as string).data.publicUrl,
+      posterUrl: bucket.getPublicUrl(r.poster_path as string).data.publicUrl,
+      aspect: Number(r.aspect_ratio ?? 16 / 9),
+    }) satisfies Video);
 }

@@ -619,18 +619,17 @@ function RowBody({
   );
 }
 
+const STATUS_PILL_CLASS: Record<Status, string> = {
+  ready: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  failed: "bg-red-50 text-red-700 ring-red-200",
+  processing: "bg-amber-50 text-amber-700 ring-amber-200",
+  pending: "bg-neutral-50 text-neutral-600 ring-neutral-200",
+};
+
 function StatusPill({ status }: { status: Status }) {
-  const color =
-    status === "ready"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-      : status === "failed"
-      ? "bg-red-50 text-red-700 ring-red-200"
-      : status === "processing"
-      ? "bg-amber-50 text-amber-700 ring-amber-200"
-      : "bg-neutral-50 text-neutral-600 ring-neutral-200";
   return (
     <span
-      className={`inline-flex h-[18px] items-center rounded-full px-2 text-[9px] font-medium uppercase leading-none tracking-[0.08em] ring-1 ring-inset ${color}`}
+      className={`inline-flex h-[18px] items-center rounded-full px-2 text-[9px] font-medium uppercase leading-none tracking-[0.08em] ring-1 ring-inset ${STATUS_PILL_CLASS[status]}`}
     >
       {status}
     </span>

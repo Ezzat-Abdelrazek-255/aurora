@@ -6,12 +6,14 @@ import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 import { categorySchema, roleSchema } from "../../lib/videos";
 import type { processVideo } from "../../../trigger/processVideo";
 
+const VIMEO_URL_RE = /^https?:\/\/vimeo\.com\/(\d+)\/([a-f0-9]+)/i;
+
 const Body = z.object({
   url: z
     .string()
     .url()
     .refine(
-      (s) => /^https?:\/\/vimeo\.com\/\d+\/[a-f0-9]+/i.test(s),
+      (s) => VIMEO_URL_RE.test(s),
       "Must be a Vimeo URL of the form https://vimeo.com/<id>/<hash>",
     ),
   name: z.string().min(1).max(120),
@@ -32,9 +34,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const m = parsed.data.url.match(
-    /^https?:\/\/vimeo\.com\/(\d+)\/([a-f0-9]+)/i,
-  );
+  const m = parsed.data.url.match(VIMEO_URL_RE);
   if (!m) {
     return NextResponse.json({ error: "could_not_parse_vimeo_url" }, { status: 400 });
   }

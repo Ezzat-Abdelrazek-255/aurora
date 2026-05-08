@@ -97,7 +97,7 @@ export function AddVideoForm() {
           </select>
         </SelectShell>
       </Field>
-      <Field label="&nbsp;">
+      <Field label={" "}>
         <button
           type="submit"
           disabled={pending || !url.trim() || !name.trim()}
@@ -158,12 +158,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span
-        // dangerouslySetInnerHTML so a `&nbsp;` placeholder keeps row height
-        // aligned for the unlabeled submit button column.
-        className="text-[10.5px] uppercase tracking-wide text-neutral-600"
-        dangerouslySetInnerHTML={{ __html: label }}
-      />
+      <span className="text-[10.5px] uppercase tracking-wide text-neutral-600">
+        {label}
+      </span>
       {children}
     </label>
   );

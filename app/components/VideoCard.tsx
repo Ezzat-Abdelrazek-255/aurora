@@ -33,11 +33,15 @@ export function VideoCard({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const parallaxRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hoverRef = useRef(false);
   const reverseRafRef = useRef<number | null>(null);
   const reverseStartMsRef = useRef(0);
   const reverseStartTimeRef = useRef(0);
   const [mounted, setMounted] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  // Mirror `hovered` into a ref so the rAF reverse-loop sees the current
+  // value without re-binding (state reads in rAF closures go stale).
+  const hoveredRef = useRef(false);
+  hoveredRef.current = hovered;
 
   // Image parallax: translate the inner wrapper (which is 140% of container
   // height with a -20% top bleed) as the card moves through the viewport. We
@@ -60,6 +64,7 @@ export function VideoCard({
 
     let active = false;
     let rafId: number | null = null;
+    let primed = false;
 
     const tick = () => {
       rafId = null;
@@ -70,7 +75,16 @@ export function VideoCard({
       const distance = rect.top + rect.height / 2 - vh / 2;
       const progress = Math.max(-1, Math.min(1, distance / range));
       // progress > 0 → card is below center → image shifts up (showing top)
-      setY(-progress * MAX_TRAVEL);
+      const target = -progress * MAX_TRAVEL;
+      if (!primed) {
+        // Snap to the target on the first frame so the page doesn't render an
+        // initial 0 → target tween (perceived as a brief "scale-in" on every
+        // card at load).
+        primed = true;
+        gsap.set(inner, { yPercent: target });
+      } else {
+        setY(target);
+      }
       rafId = requestAnimationFrame(tick);
     };
 
@@ -138,7 +152,7 @@ export function VideoCard({
     reverseStartTimeRef.current = fromTime;
 
     const step = (now: number) => {
-      if (!hoverRef.current) {
+      if (!hoveredRef.current) {
         reverseRafRef.current = null;
         return;
       }
@@ -167,7 +181,7 @@ export function VideoCard({
   // video stopped (≈ duration). We rely on the native `ended` event because
   // polling `currentTime` against a 2.0s clip is racy.
   const onEnded = () => {
-    if (!hoverRef.current) return;
+    if (!hoveredRef.current) return;
     const v = videoRef.current;
     if (!v) return;
     const from = v.currentTime || v.duration || 3;
@@ -175,7 +189,7 @@ export function VideoCard({
   };
 
   const onEnter = () => {
-    hoverRef.current = true;
+    setHovered(true);
     if (!mounted) return;
     const v = videoRef.current;
     if (!v) return;
@@ -185,20 +199,16 @@ export function VideoCard({
   };
 
   const onLeave = () => {
-    hoverRef.current = false;
+    setHovered(false);
     cancelReverse();
     const v = videoRef.current;
     if (v) {
       v.pause();
-      // Snap back to frame 0 so the resting state is always the first frame.
       v.currentTime = 0;
     }
   };
 
   const onClick = () => {
-    // Pass the same poster URL the card is rendering so the modal placeholder
-    // matches while the Vimeo iframe boots. Aspect drives the modal frame so
-    // it matches the source video instead of forcing 16/9.
     openVideo({ id, hash, name, role, aspect, thumb: posterUrl });
   };
 
@@ -239,7 +249,13 @@ export function VideoCard({
             disablePictureInPicture
             controlsList="nodownload nofullscreen noremoteplayback"
             onEnded={onEnded}
-            className="absolute inset-0 h-full w-full object-cover"
+            // Hidden by default so the poster <img> behind shows through at
+            // rest. This matters when the poster came from Vimeo's thumbnail
+            // (frame 0 of the clip is black for those — pausing on it would
+            // cover the real poster). Faded in on hover; faded out on leave.
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-150 ease-out ${
+              hovered ? "opacity-100" : "opacity-0"
+            }`}
             onContextMenu={(e) => e.preventDefault()}
             draggable={false}
           />

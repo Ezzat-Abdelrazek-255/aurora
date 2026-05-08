@@ -2,8 +2,10 @@
 // Fetches a Vimeo embed page, scrapes window.playerConfig (brace-counting
 // since the JSON is unbounded), and returns the default-CDN HLS playlist URL.
 
-const UA =
+export const VIMEO_UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+const UA = VIMEO_UA;
 
 export async function fetchVimeoEmbed(
   vimeoId: string,
@@ -58,7 +60,14 @@ type Hls = {
   default_cdn?: string;
   cdns?: Record<string, { avc_url?: string; url?: string }>;
 };
-type Cfg = { request?: { files?: { hls?: Hls } } };
+type VideoMeta = {
+  thumbs?: Record<string, string>;
+  thumbnail_url?: string;
+};
+type Cfg = {
+  request?: { files?: { hls?: Hls } };
+  video?: VideoMeta;
+};
 
 export function pickHlsUrl(cfg: unknown): string {
   const hls = (cfg as Cfg)?.request?.files?.hls;
@@ -70,6 +79,48 @@ export function pickHlsUrl(cfg: unknown): string {
   return url;
 }
 
+/**
+ * Vimeo's playerConfig exposes a thumbnail two ways depending on the video:
+ *  - `video.thumbnail_url`: a single base CDN URL (most common for current
+ *    embeds). Has no size suffix; the CDN serves a default size, but we can
+ *    request a specific render by appending `_WIDTHxHEIGHT.jpg`.
+ *  - `video.thumbs`: an older shape — `{ "640": "...", "960": "..." }`
+ *    keyed by width.
+ * We coalesce both shapes and ask for a 1280-wide JPG so the fallback poster
+ * has enough resolution for VideoCard at 2x DPR. Returns null only if
+ * neither field is present.
+ */
+export function pickThumbUrl(cfg: unknown): string | null {
+  const video = (cfg as Cfg)?.video;
+  if (!video) return null;
+
+  const thumbs = video.thumbs;
+  if (thumbs) {
+    let bestSize = -1;
+    let bestUrl: string | null = null;
+    for (const [k, v] of Object.entries(thumbs)) {
+      if (typeof v !== "string" || !/^https?:\/\//.test(v)) continue;
+      const n = Number(k);
+      if (Number.isFinite(n) && n > bestSize) {
+        bestSize = n;
+        bestUrl = v;
+      }
+    }
+    if (bestUrl) return bestUrl;
+    for (const v of Object.values(thumbs)) {
+      if (typeof v === "string" && /^https?:\/\//.test(v)) return v;
+    }
+  }
+
+  const base = video.thumbnail_url;
+  if (typeof base === "string" && /^https?:\/\//.test(base)) {
+    // Vimeo's CDN renders any `_WIDTHxHEIGHT.jpg` suffix on the base URL.
+    return /\.(jpe?g|webp|png)$/i.test(base) ? base : `${base}_1280x720.jpg`;
+  }
+
+  return null;
+}
+
 export async function getHlsUrl(
   vimeoId: string,
   vimeoHash: string,
@@ -77,4 +128,18 @@ export async function getHlsUrl(
   const html = await fetchVimeoEmbed(vimeoId, vimeoHash);
   const cfg = extractPlayerConfig(html);
   return pickHlsUrl(cfg);
+}
+
+/**
+ * Fetch the embed page once and return both the HLS playlist URL and the
+ * largest pre-rendered thumbnail. Used by processVideo so we don't pay for
+ * two embed fetches when we need both pieces.
+ */
+export async function getStreamData(
+  vimeoId: string,
+  vimeoHash: string,
+): Promise<{ hlsUrl: string; thumbUrl: string | null }> {
+  const html = await fetchVimeoEmbed(vimeoId, vimeoHash);
+  const cfg = extractPlayerConfig(html);
+  return { hlsUrl: pickHlsUrl(cfg), thumbUrl: pickThumbUrl(cfg) };
 }
