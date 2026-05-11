@@ -626,13 +626,11 @@ function RowBody({
             {r.status === "ready" && r.gallery_urls.length > 0 && (
               <TextButton onClick={onView}>View</TextButton>
             )}
-            {r.kind === "play" &&
-              r.status === "ready" &&
-              r.gallery_paths.length > 0 && (
-                <TextButton onClick={onManage} disabled={editingAny}>
-                  Images
-                </TextButton>
-              )}
+            {r.status === "ready" && r.gallery_paths.length > 0 && (
+              <TextButton onClick={onManage} disabled={editingAny}>
+                Images
+              </TextButton>
+            )}
             <TextButton onClick={onEdit} disabled={editingAny}>
               Edit
             </TextButton>
