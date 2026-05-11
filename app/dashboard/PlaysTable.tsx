@@ -29,6 +29,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useOpenPlay } from "../components/ModalProvider";
 import { createSupabaseBrowserClient } from "../lib/supabase/client";
 import { CATEGORIES, ROLES, type Category, type Role } from "../lib/videos";
+import { ManagePlayImagesModal } from "./ManagePlayImagesModal";
 
 type Status = "pending" | "processing" | "ready" | "failed";
 type Kind = "play" | "still";
@@ -42,6 +43,8 @@ export type DashboardPlayRow = {
   kind: Kind;
   cover_url: string | null;
   gallery_urls: string[];
+  /** Storage paths matching `gallery_urls` 1:1 — used to identify images for reorder/delete. */
+  gallery_paths: string[];
   error_message: string | null;
   position: number;
   created_at: string;
@@ -70,6 +73,7 @@ export function PlaysTable({
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [managingSlug, setManagingSlug] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient> | null>(
@@ -159,6 +163,7 @@ export function PlaysTable({
                     gallery_urls: next.gallery_paths
                       ? next.gallery_paths.map((p) => STORAGE_BASE + p)
                       : r.gallery_urls,
+                    gallery_paths: next.gallery_paths ?? r.gallery_paths,
                   }
                 : r,
             );
@@ -339,6 +344,7 @@ export function PlaysTable({
                   onCancel={cancelEdit}
                   onDelete={() => onDelete(r.slug, r.name)}
                   onView={() => onView(r)}
+                  onManage={() => setManagingSlug(r.slug)}
                 />
               ))}
             </ul>
@@ -361,10 +367,33 @@ export function PlaysTable({
               onCancel={() => {}}
               onDelete={() => {}}
               onView={() => {}}
+              onManage={() => {}}
             />
           ))}
         </ul>
       )}
+      {managingSlug && (() => {
+        const row = rows.find((r) => r.slug === managingSlug);
+        if (!row) return null;
+        return (
+          <ManagePlayImagesModal
+            slug={row.slug}
+            name={row.name}
+            paths={row.gallery_paths}
+            urls={row.gallery_urls}
+            onClose={() => setManagingSlug(null)}
+            onChange={({ paths, urls }) => {
+              setRows((prev) =>
+                prev.map((r) =>
+                  r.slug === managingSlug
+                    ? { ...r, gallery_paths: paths, gallery_urls: urls }
+                    : r,
+                ),
+              );
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -389,6 +418,7 @@ type RowProps = {
   onCancel: () => void;
   onDelete: () => void;
   onView: () => void;
+  onManage: () => void;
 };
 
 function SortableRow(props: RowProps) {
@@ -443,6 +473,7 @@ function RowBody({
   onCancel,
   onDelete,
   onView,
+  onManage,
   dnd,
 }: RowProps & { dnd?: DndSlots }) {
   return (
@@ -595,6 +626,13 @@ function RowBody({
             {r.status === "ready" && r.gallery_urls.length > 0 && (
               <TextButton onClick={onView}>View</TextButton>
             )}
+            {r.kind === "play" &&
+              r.status === "ready" &&
+              r.gallery_paths.length > 0 && (
+                <TextButton onClick={onManage} disabled={editingAny}>
+                  Images
+                </TextButton>
+              )}
             <TextButton onClick={onEdit} disabled={editingAny}>
               Edit
             </TextButton>
@@ -699,6 +737,7 @@ function fromRealtime(
     kind: next.kind,
     cover_url: next.cover_path ? STORAGE_BASE + next.cover_path : null,
     gallery_urls: (next.gallery_paths ?? []).map((p) => STORAGE_BASE + p),
+    gallery_paths: next.gallery_paths ?? [],
     error_message: next.error_message ?? null,
     position: next.position,
     created_at: next.created_at,

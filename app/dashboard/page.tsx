@@ -52,21 +52,23 @@ export default async function DashboardPage() {
     };
   });
 
-  const initialPlays: DashboardPlayRow[] = (playsRes.data ?? []).map((r) => ({
-    slug: r.slug,
-    name: r.name,
-    category: r.category,
-    role: r.role,
-    status: r.status,
-    kind: r.kind ?? "play",
-    cover_url: r.cover_path ? bucket.getPublicUrl(r.cover_path).data.publicUrl : null,
-    gallery_urls: ((r.gallery_paths as string[] | null) ?? []).map(
-      (p) => bucket.getPublicUrl(p).data.publicUrl,
-    ),
-    error_message: r.error_message,
-    position: r.position,
-    created_at: r.created_at,
-  }));
+  const initialPlays: DashboardPlayRow[] = (playsRes.data ?? []).map((r) => {
+    const paths = ((r.gallery_paths as string[] | null) ?? []);
+    return {
+      slug: r.slug,
+      name: r.name,
+      category: r.category,
+      role: r.role,
+      status: r.status,
+      kind: r.kind ?? "play",
+      cover_url: r.cover_path ? bucket.getPublicUrl(r.cover_path).data.publicUrl : null,
+      gallery_urls: paths.map((p) => bucket.getPublicUrl(p).data.publicUrl),
+      gallery_paths: paths,
+      error_message: r.error_message,
+      position: r.position,
+      created_at: r.created_at,
+    };
+  });
 
   const playRows = initialPlays.filter((r) => r.kind === "play");
   const stillRows = initialPlays.filter((r) => r.kind === "still");
