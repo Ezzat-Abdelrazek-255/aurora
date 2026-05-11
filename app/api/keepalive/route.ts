@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret) {
