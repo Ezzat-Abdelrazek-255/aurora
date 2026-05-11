@@ -31,6 +31,7 @@ import { createSupabaseBrowserClient } from "../lib/supabase/client";
 import { CATEGORIES, ROLES, type Category, type Role } from "../lib/videos";
 
 type Status = "pending" | "processing" | "ready" | "failed";
+type Kind = "play" | "still";
 
 export type DashboardPlayRow = {
   slug: string;
@@ -38,6 +39,7 @@ export type DashboardPlayRow = {
   category: Category;
   role: Role;
   status: Status;
+  kind: Kind;
   cover_url: string | null;
   gallery_urls: string[];
   error_message: string | null;
@@ -50,7 +52,18 @@ type RowBusy = "delete" | "edit" | undefined;
 
 const STORAGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/clips/`;
 
-export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
+export function PlaysTable({
+  initial,
+  kind = "play",
+}: {
+  initial: DashboardPlayRow[];
+  /**
+   * Stills and plays share the same storage shape and table UI; this only
+   * tunes the empty-state copy. Filtering between the two is done by the
+   * caller — see app/dashboard/page.tsx.
+   */
+  kind?: "play" | "still";
+}) {
   const openPlay = useOpenPlay();
   const [rows, setRows] = useState<DashboardPlayRow[]>(initial);
   const [busy, setBusy] = useState<Record<string, RowBusy>>({});
@@ -93,7 +106,7 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
     });
 
     const channel = supabase
-      .channel("plays-dashboard")
+      .channel(`plays-dashboard-${kind}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "plays" },
@@ -104,6 +117,7 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
                 cover_path: string | null;
                 gallery_paths: string[] | null;
               };
+              if (next.kind !== kind) return prev;
               if (prev.some((r) => r.slug === next.slug)) return prev;
               return [...prev, fromRealtime(next)].sort(
                 (a, b) => a.position - b.position,
@@ -117,6 +131,17 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
               cover_path: string | null;
               gallery_paths: string[] | null;
             };
+            // A row could be reclassified between play/still via PATCH; mirror
+            // that by inserting/removing from this table's view as needed.
+            const wasHere = prev.some((r) => r.slug === next.slug);
+            if (next.kind !== kind) {
+              return wasHere ? prev.filter((r) => r.slug !== next.slug) : prev;
+            }
+            if (!wasHere) {
+              return [...prev, fromRealtime(next)].sort(
+                (a, b) => a.position - b.position,
+              );
+            }
             return prev.map((r) =>
               r.slug === next.slug
                 ? {
@@ -125,6 +150,7 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
                     category: next.category,
                     role: next.role,
                     status: next.status,
+                    kind: next.kind,
                     error_message: next.error_message ?? null,
                     position: next.position,
                     cover_url: next.cover_path
@@ -298,7 +324,7 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
         >
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
-              {sorted.length === 0 && <EmptyRow />}
+              {sorted.length === 0 && <EmptyRow kind={kind} />}
               {sorted.map((r) => (
                 <SortableRow
                   key={r.slug}
@@ -320,7 +346,7 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
         </DndContext>
       ) : (
         <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
-          {sorted.length === 0 && <EmptyRow />}
+          {sorted.length === 0 && <EmptyRow kind={kind} />}
           {sorted.map((r) => (
             <RowBody
               key={r.slug}
@@ -343,10 +369,10 @@ export function PlaysTable({ initial }: { initial: DashboardPlayRow[] }) {
   );
 }
 
-function EmptyRow() {
+function EmptyRow({ kind }: { kind: "play" | "still" }) {
   return (
     <li className="px-4 py-8 text-center text-[13px] text-neutral-500">
-      No plays yet. Add one above.
+      No {kind === "still" ? "stills" : "plays"} yet. Add one above.
     </li>
   );
 }
@@ -670,6 +696,7 @@ function fromRealtime(
     category: next.category,
     role: next.role,
     status: next.status,
+    kind: next.kind,
     cover_url: next.cover_path ? STORAGE_BASE + next.cover_path : null,
     gallery_urls: (next.gallery_paths ?? []).map((p) => STORAGE_BASE + p),
     error_message: next.error_message ?? null,

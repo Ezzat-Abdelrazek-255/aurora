@@ -148,7 +148,7 @@ export function PlayCard({
   // larger main title. Plays usually have just the title, in which case the
   // whole string becomes the main heading.
   const commaIdx = name.indexOf(",");
-  const titlePrefix = commaIdx >= 0 ? name.slice(0, commaIdx + 1).trim() : null;
+  const titlePrefix = commaIdx >= 0 ? name.slice(0, commaIdx).trim() : null;
   const titleMain = commaIdx >= 0 ? name.slice(commaIdx + 1).trim() : name;
 
   const titleSizes =

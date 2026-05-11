@@ -3,16 +3,72 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Spinner } from "../components/Spinner";
-import { resizeImage, type ResizedImage } from "../lib/imageResize";
 import { CATEGORIES, ROLES, type Category, type Role } from "../lib/videos";
 
-export function AddPlayForm() {
+const MAX_DIM = 2400;
+const QUALITY = 0.82;
+
+type ResizedImage = {
+  blob: Blob;
+  width: number;
+  height: number;
+  name: string;
+};
+
+// Same browser-side resize pipeline as AddPlayForm — keeps payloads bounded
+// and respects EXIF orientation via createImageBitmap.
+async function resizeImage(file: File): Promise<ResizedImage> {
+  const bitmap: ImageBitmap | HTMLImageElement = await createBitmap(file);
+  const w0 = "width" in bitmap ? bitmap.width : (bitmap as HTMLImageElement).naturalWidth;
+  const h0 = "height" in bitmap ? bitmap.height : (bitmap as HTMLImageElement).naturalHeight;
+  const scale = Math.min(1, MAX_DIM / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scale));
+  const h = Math.max(1, Math.round(h0 * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas 2d context unavailable");
+  ctx.drawImage(bitmap as CanvasImageSource, 0, 0, w, h);
+  if ("close" in bitmap) bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", QUALITY),
+  );
+  if (!blob) throw new Error("toBlob returned null");
+  const stem = file.name.replace(/\.[^.]+$/, "") || "image";
+  return { blob, width: w, height: h, name: `${stem}.jpg` };
+}
+
+async function createBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      // Fall through to <img> path on browsers that throw on certain MIME types.
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await img.decode();
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Stills are single-image plays. We post to the same /api/plays endpoint with
+ * one image so they share the table, lightbox, and grid rendering with plays.
+ */
+export function AddStillForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("Talent");
   const [category, setCategory] = useState<Category>("theatre");
-  const [files, setFiles] = useState<File[]>([]);
-  const [thumb, setThumb] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [pending, setPending] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,52 +76,27 @@ export function AddPlayForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (files.length === 0) {
-      setError("At least one image is required");
+    if (!file) {
+      setError("An image is required");
       return;
     }
     setPending(true);
     try {
-      const total = files.length + (thumb ? 1 : 0);
-      let done = 0;
-      setProgress(`Optimizing 0 / ${total}…`);
-      const resized: ResizedImage[] = [];
-      for (let i = 0; i < files.length; i++) {
-        done++;
-        setProgress(`Optimizing ${done} / ${total}…`);
-        resized.push(await resizeImage(files[i]));
-      }
-      let resizedThumb: ResizedImage | null = null;
-      if (thumb) {
-        done++;
-        setProgress(`Optimizing ${done} / ${total}…`);
-        resizedThumb = await resizeImage(thumb);
-      }
-
-      // Aspect ratio drives the grid card; use the explicit thumb if present
-      // since that's what renders on the homepage card, otherwise fall back
-      // to the first gallery image.
-      const aspectSource = resizedThumb ?? resized[0];
-      const aspect = aspectSource.width / aspectSource.height;
+      setProgress("Optimizing…");
+      const resized = await resizeImage(file);
+      const aspect = resized.width / resized.height;
 
       setProgress("Uploading…");
       const form = new FormData();
       form.set("name", name.trim());
       form.set("role", role);
       form.set("category", category);
-      form.set("kind", "play");
+      form.set("kind", "still");
       form.set("aspect", String(aspect));
-      for (const r of resized) {
-        form.append("images", new File([r.blob], r.name, { type: "image/jpeg" }));
-      }
-      if (resizedThumb) {
-        form.set(
-          "cover",
-          new File([resizedThumb.blob], resizedThumb.name, {
-            type: "image/jpeg",
-          }),
-        );
-      }
+      form.append(
+        "images",
+        new File([resized.blob], resized.name, { type: "image/jpeg" }),
+      );
       const res = await fetch("/api/plays", { method: "POST", body: form });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as
@@ -78,8 +109,7 @@ export function AddPlayForm() {
       setName("");
       setRole("Talent");
       setCategory("theatre");
-      setFiles([]);
-      setThumb(null);
+      setFile(null);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -92,7 +122,7 @@ export function AddPlayForm() {
   return (
     <form
       onSubmit={submit}
-      className="mt-4 grid gap-x-4 gap-y-3 rounded-lg border border-neutral-200 bg-neutral-50/40 p-5 md:grid-cols-[1fr_auto_auto_auto_auto_auto]"
+      className="mt-4 grid gap-x-4 gap-y-3 rounded-lg border border-neutral-200 bg-neutral-50/40 p-5 md:grid-cols-[1fr_auto_auto_auto_auto]"
     >
       <Field label="Name">
         <input
@@ -101,7 +131,7 @@ export function AddPlayForm() {
           maxLength={120}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="A View From the Bridge"
+          placeholder="Backstage portrait"
           className={inputCls}
         />
       </Field>
@@ -135,38 +165,22 @@ export function AddPlayForm() {
           </select>
         </SelectShell>
       </Field>
-      <Field label="Thumbnail (optional)">
+      <Field label="Image">
         <label className="inline-flex h-[38px] w-fit max-w-full cursor-pointer items-center rounded-md bg-neutral-200 px-3 text-[11.5px] uppercase tracking-wide text-[#040d08] hover:bg-neutral-300">
-          <span className="truncate">{thumb?.name ?? "Choose file"}</span>
+          <span className="truncate">{file?.name ?? "Choose file"}</span>
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setThumb(e.target.files?.[0] ?? null)}
-            className="hidden"
-          />
-        </label>
-      </Field>
-      <Field label="Gallery images">
-        <label className="inline-flex h-[38px] w-fit max-w-full cursor-pointer items-center rounded-md bg-neutral-200 px-3 text-[11.5px] uppercase tracking-wide text-[#040d08] hover:bg-neutral-300">
-          <span className="truncate">
-            {files.length === 0
-              ? "Choose files"
-              : `${files.length} selected`}
-          </span>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
             required
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="hidden"
           />
         </label>
       </Field>
       <button
         type="submit"
-        aria-label="Add play"
-        disabled={pending || !name.trim() || files.length === 0}
+        aria-label="Add still"
+        disabled={pending || !name.trim() || !file}
         className="box-border inline-flex h-[38px] items-center justify-center self-end px-3 text-[12px] uppercase leading-none tracking-wider text-[#040d08] transition hover:opacity-60 disabled:opacity-30"
       >
         <span className="inline-flex items-center gap-2">
@@ -177,7 +191,7 @@ export function AddPlayForm() {
       {error && (
         <p
           aria-live="polite"
-          className="md:col-span-6 text-[12.5px] text-red-700"
+          className="md:col-span-5 text-[12.5px] text-red-700"
         >
           {error}
         </p>

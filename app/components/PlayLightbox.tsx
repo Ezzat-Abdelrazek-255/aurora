@@ -167,7 +167,7 @@ export function PlayLightbox({ play, onClose }: Props) {
         {total > 1 && (
           <nav
             aria-label="Gallery thumbnails"
-            className="mt-4 -mx-1 overflow-x-auto pb-1"
+            className="mt-4 -mx-1 overflow-x-auto py-1"
           >
             <ul className="flex gap-2 px-1 md:gap-3">
               {play.gallery.map((url, i) => {

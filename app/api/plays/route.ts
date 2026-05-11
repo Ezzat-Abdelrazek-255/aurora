@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "../../lib/admin";
 import {
   playCategorySchema,
+  playKindSchema,
   playRoleSchema,
   slugSchema,
   slugify,
@@ -10,9 +11,9 @@ import {
 import { revalidatePlays } from "../../lib/plays-server";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
-// Multipart form: name + role + category + aspect + images (1+ files, first
-// is the cover). Slug is derived from the name unless one is supplied.
-const META_KEYS = new Set(["name", "role", "category", "aspect", "slug"]);
+// Multipart form: name + role + category + aspect + kind + images (1+ files,
+// first is the cover). Slug is derived from the name unless one is supplied.
+const META_KEYS = new Set(["name", "role", "category", "aspect", "slug", "kind"]);
 
 const Meta = z.object({
   name: z.string().min(1).max(120),
@@ -20,6 +21,7 @@ const Meta = z.object({
   category: playCategorySchema.default("theatre"),
   aspect: z.coerce.number().positive().finite(),
   slug: slugSchema.optional(),
+  kind: playKindSchema.default("play"),
 });
 
 function safeFileName(name: string, fallbackExt = "jpg"): string {
@@ -54,11 +56,14 @@ export async function POST(request: NextRequest) {
 
   const meta: Record<string, string> = {};
   const files: File[] = [];
+  let coverFile: File | null = null;
   for (const [key, value] of form.entries()) {
     if (META_KEYS.has(key) && typeof value === "string") {
       meta[key] = value;
     } else if (key === "images" && value instanceof File) {
       files.push(value);
+    } else if (key === "cover" && value instanceof File) {
+      coverFile = value;
     }
   }
   const parsed = Meta.safeParse(meta);
@@ -84,6 +89,15 @@ export async function POST(request: NextRequest) {
         { status: 415 },
       );
     }
+  }
+  if (coverFile && !ALLOWED_MIME.test(coverFile.type)) {
+    return NextResponse.json(
+      {
+        error: "unsupported_image",
+        message: `${coverFile.name}: ${coverFile.type || "unknown"} is not an allowed image type`,
+      },
+      { status: 415 },
+    );
   }
 
   const slug = parsed.data.slug ?? slugify(parsed.data.name);
@@ -123,6 +137,7 @@ export async function POST(request: NextRequest) {
     name: parsed.data.name,
     category: parsed.data.category,
     role: parsed.data.role,
+    kind: parsed.data.kind,
     aspect_ratio: parsed.data.aspect,
     status: "pending",
     position,
@@ -136,6 +151,7 @@ export async function POST(request: NextRequest) {
 
   const bucket = admin.storage.from("clips");
   const galleryPaths: string[] = [];
+  let coverPath: string | null = null;
   try {
     let i = 0;
     for (const file of files) {
@@ -150,10 +166,22 @@ export async function POST(request: NextRequest) {
       galleryPaths.push(dest);
       i++;
     }
+    if (coverFile) {
+      const dest = `plays/${slug}/cover-${safeFileName(coverFile.name)}`;
+      const buf = Buffer.from(await coverFile.arrayBuffer());
+      const { error } = await bucket.upload(dest, buf, {
+        contentType: coverFile.type || "image/jpeg",
+        upsert: true,
+      });
+      if (error) throw new Error(`upload ${dest}: ${error.message}`);
+      coverPath = dest;
+    }
   } catch (e) {
     // Roll back: delete row + any objects we managed to upload.
-    if (galleryPaths.length > 0) {
-      await bucket.remove(galleryPaths);
+    const cleanup = [...galleryPaths];
+    if (coverPath) cleanup.push(coverPath);
+    if (cleanup.length > 0) {
+      await bucket.remove(cleanup);
     }
     await admin.from("plays").delete().eq("slug", slug);
     return NextResponse.json(
@@ -165,13 +193,15 @@ export async function POST(request: NextRequest) {
   const { error: readyErr } = await admin
     .from("plays")
     .update({
-      cover_path: galleryPaths[0],
+      cover_path: coverPath ?? galleryPaths[0],
       gallery_paths: galleryPaths,
       status: "ready",
     })
     .eq("slug", slug);
   if (readyErr) {
-    await bucket.remove(galleryPaths);
+    const cleanup = [...galleryPaths];
+    if (coverPath) cleanup.push(coverPath);
+    await bucket.remove(cleanup);
     await admin.from("plays").delete().eq("slug", slug);
     return NextResponse.json(
       { error: "finalize_failed", message: readyErr.message },

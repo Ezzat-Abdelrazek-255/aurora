@@ -7,6 +7,15 @@ import { CATEGORIES, ROLES, type Category, type Role } from "./videos";
 export type PlayStatus = "pending" | "processing" | "ready" | "failed";
 
 /**
+ * Discriminates regular plays (multi-image theatre galleries) from stills
+ * (single-image). Stored on the row so the dashboard can separate them
+ * cleanly regardless of gallery state during upload.
+ */
+export type PlayKind = "play" | "still";
+export const PLAY_KINDS = ["play", "still"] as const;
+export const playKindSchema = z.enum(PLAY_KINDS as unknown as [PlayKind, ...PlayKind[]]);
+
+/**
  * Server-side shape of a play. `coverUrl` and `galleryUrls` are absolute
  * Supabase Storage URLs resolved at fetch time so client components don't need
  * direct Supabase access.
