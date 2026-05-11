@@ -25,4 +25,4 @@ export function randomSeed(): string {
   return n.toString(36).padStart(7, "0").slice(-7);
 }
 
-export const DEFAULT_SEED = "1pa9dc2";
+export const DEFAULT_SEED = "0h6323v";

@@ -10,6 +10,7 @@ type Props = {
   x: number;
   y: number;
   move: string;
+  nudge: string;
 };
 
 const setVars = (xPx: number, yPct: number) => {
@@ -18,18 +19,20 @@ const setVars = (xPx: number, yPct: number) => {
   document.documentElement.style.setProperty("--layout-y", `${yPct / 100}`);
 };
 
-export function SeedControls({ seed, x, y, move }: Props) {
+export function SeedControls({ seed, x, y, move, nudge }: Props) {
   const { view } = useView();
   const router = useRouter();
   const currentParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
   const [draft, setDraft] = useState(seed);
+  const [nudgeDraft, setNudgeDraft] = useState(nudge);
   const [localX, setLocalX] = useState(x);
   const [localY, setLocalY] = useState(y);
 
   // Mirror props -> local state when URL navigation lands.
   useEffect(() => setDraft(seed), [seed]);
+  useEffect(() => setNudgeDraft(nudge), [nudge]);
   useEffect(() => {
     setLocalX(x);
     setVars(x, localY);
@@ -46,6 +49,7 @@ export function SeedControls({ seed, x, y, move }: Props) {
     x?: number;
     y?: number;
     move?: string;
+    nudge?: string;
   }) => {
     const sp = new URLSearchParams(currentParams.toString());
     sp.set("seed", params.seed ?? seed);
@@ -53,14 +57,19 @@ export function SeedControls({ seed, x, y, move }: Props) {
     sp.set("y", String(params.y ?? localY));
     const nextMove = params.move ?? move;
     if (nextMove) sp.set("move", nextMove);
+    else sp.delete("move");
+    const nextNudge = params.nudge ?? nudge;
+    if (nextNudge) sp.set("nudge", nextNudge);
+    else sp.delete("nudge");
     startTransition(() => {
       router.push(`/?${sp.toString()}`, { scroll: false });
     });
   };
 
   // Randomizing should not carry over a tweak that was hand-tuned for a
-  // different seed — clear `move` whenever the seed changes.
-  const onRandomize = () => push({ seed: randomSeed(), move: "" });
+  // different seed — clear `move` and `nudge` whenever the seed changes.
+  const onRandomize = () =>
+    push({ seed: randomSeed(), move: "", nudge: "" });
 
   const onCopy = async () => {
     try {
@@ -69,6 +78,7 @@ export function SeedControls({ seed, x, y, move }: Props) {
       params.set("x", String(localX));
       params.set("y", String(localY));
       if (move) params.set("move", move);
+      if (nudge) params.set("nudge", nudge);
       const url = `${window.location.origin}/?${params.toString()}`;
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -143,6 +153,38 @@ export function SeedControls({ seed, x, y, move }: Props) {
         }}
         onCommit={(v) => push({ y: v })}
       />
+
+      <div className="mx-1 h-5 w-px bg-neutral-200" />
+
+      <label className="flex items-center gap-1.5 text-neutral-700">
+        <span className="font-medium">Nudge</span>
+        <input
+          value={nudgeDraft}
+          onChange={(e) => setNudgeDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") push({ nudge: nudgeDraft.trim() });
+          }}
+          onBlur={() => {
+            if (nudgeDraft.trim() !== nudge) push({ nudge: nudgeDraft.trim() });
+          }}
+          placeholder="v:vimeoId|end|65"
+          spellCheck={false}
+          aria-label="Per-item nudge"
+          title='Format: "<itemId>|<align>[|<widthPct>]", comma-separated. itemId is v:<vimeoId> or p:<slug>.'
+          className="w-56 rounded-full bg-neutral-100 px-3 py-1 font-mono text-[12px] text-neutral-900 outline-none focus:bg-white focus:ring-1 focus:ring-neutral-300"
+        />
+        {nudge && (
+          <button
+            type="button"
+            onClick={() => push({ nudge: "" })}
+            className="rounded-full px-2 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+            aria-label="Clear nudge"
+            title="Clear nudge"
+          >
+            ×
+          </button>
+        )}
+      </label>
     </div>
   );
 }

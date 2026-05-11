@@ -12,7 +12,14 @@ import { VideoCard } from "./components/VideoCard";
 import { ViewProvider, type ViewMode } from "./components/ViewProvider";
 import { ActiveView } from "./components/ViewSwitcher";
 import { ViewToggle } from "./components/ViewToggle";
-import { applyMoves, generateLayout, parseMoves, type Cell } from "./lib/grid";
+import {
+  applyMoves,
+  applyNudges,
+  generateLayout,
+  parseMoves,
+  parseNudges,
+  type Cell,
+} from "./lib/grid";
 import type { Play } from "./lib/plays";
 import { listReadyPlays } from "./lib/plays-server";
 import { DEFAULT_SEED } from "./lib/seed";
@@ -60,6 +67,7 @@ type SearchParams = Promise<{
   x?: string | string[];
   y?: string | string[];
   move?: string | string[];
+  nudge?: string | string[];
   view?: string | string[];
   category?: string | string[];
   q?: string | string[];
@@ -74,6 +82,13 @@ const DEFAULT_Y = 180; // percent
 const X_MAX = 400;
 const Y_MAX = 800;
 const COPIES = [0, 1] as const;
+// Seed whose column-0 widthPct/align/marginUnit values we overlay onto the
+// main seed's column 0, picked for a varied left-edge look.
+const COL0_STYLE_SEED = "0gliazk";
+// Per-item style overrides baked into the deploy. Same format as the `nudge`
+// URL param: "<itemId>|<align>[|<widthPct>]", comma-separated. URL nudges
+// (when present) take precedence over these on a per-id basis.
+const BAKED_NUDGES = "v:1185677642|center|80";
 
 export default async function Home({
   searchParams,
@@ -103,6 +118,15 @@ export default async function Home({
 
   const moveStr = pickFirst(sp.move) ?? "";
   const moves = parseMoves(moveStr);
+  const nudgeStr = pickFirst(sp.nudge) ?? "";
+  const urlNudges = parseNudges(nudgeStr);
+  const bakedNudges = parseNudges(BAKED_NUDGES);
+  // URL nudges win on a per-id basis so the dev SeedControls can override or
+  // disable a baked nudge without editing code.
+  const nudges = [
+    ...bakedNudges.filter((b) => !urlNudges.some((u) => u.id === b.id)),
+    ...urlNudges,
+  ];
 
   // Source of truth is Supabase for both shapes. Plays are theatre still
   // galleries — they share the layout pipeline with videos via a single
@@ -113,8 +137,23 @@ export default async function Home({
     ...videos.map((v): GridItem => ({ kind: "video", ...v })),
     ...plays.map((p): GridItem => ({ kind: "play", ...p })),
   ];
-  const baseLayout = generateLayout(seed, items.length);
-  const cols = applyMoves(baseLayout.cols, moves);
+  // Namespaced id so a video id and a play slug can't collide on the layout
+  // hash. Pairing it with the item's aspect lets generateLayout balance the
+  // columns by projected card height (masonry) instead of just by count.
+  const itemKey = (item: GridItem) =>
+    item.kind === "video" ? `v:${item.id}` : `p:${item.slug}`;
+  const layoutItems = items.map((item) => ({
+    id: itemKey(item),
+    aspect: item.aspect,
+  }));
+  const baseLayout = generateLayout(seed, layoutItems, {
+    col0StyleSeed: COL0_STYLE_SEED,
+  });
+  const cols = applyNudges(
+    applyMoves(baseLayout.cols, moves),
+    nudges,
+    layoutItems.map((it) => it.id),
+  );
 
   const seededOrder: number[] = [];
   const maxLen = Math.max(...cols.map((c) => c.length));
@@ -180,7 +219,7 @@ export default async function Home({
         >
           <div className="flex flex-col max-md:gap-y-8 md:pt-24 lg:pt-28">{cols[0].map(renderCell(copy))}</div>
           <div className="flex flex-col max-md:gap-y-8 max-md:mt-8">{cols[1].map(renderCell(copy))}</div>
-          <div className="flex flex-col max-md:gap-y-8 max-md:mt-8">{cols[2].map(renderCell(copy))}</div>
+          <div className="flex flex-col max-md:gap-y-8 max-md:mt-8 md:pt-12 lg:pt-16">{cols[2].map(renderCell(copy))}</div>
         </section>
       ))}
     </>
@@ -286,7 +325,13 @@ export default async function Home({
           <ViewToggle />
           <FilterBar />
           {process.env.VERCEL_ENV !== "production" && (
-            <SeedControls seed={seed} x={x} y={y} move={moveStr} />
+            <SeedControls
+              seed={seed}
+              x={x}
+              y={y}
+              move={moveStr}
+              nudge={nudgeStr}
+            />
           )}
           <ScrollIndicator />
 
