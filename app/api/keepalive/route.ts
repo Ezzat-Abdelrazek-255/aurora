@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("videos").select("id").limit(1);
+  const { error } = await admin.from("videos").select("vimeo_id").limit(1);
 
   if (error) {
     return NextResponse.json(
