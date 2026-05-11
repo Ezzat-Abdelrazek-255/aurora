@@ -5,6 +5,7 @@ import { requireAdmin } from "../../lib/admin";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 import { categorySchema, roleSchema } from "../../lib/videos";
 import { revalidateVideos } from "../../lib/videos-server";
+import { uploadCustomPoster } from "../../lib/customPoster";
 import { resolveVimeoHash } from "../../../trigger/lib/vimeo";
 import type { processVideo } from "../../../trigger/processVideo";
 
@@ -30,8 +31,34 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
 
-  const json = await request.json().catch(() => null);
-  const parsed = Body.safeParse(json);
+  // The dashboard form always sends multipart so it can attach an optional
+  // thumbnail. Older JSON callers still work — we fall through to JSON when
+  // the content-type isn't multipart.
+  const ct = request.headers.get("content-type") ?? "";
+  let payload: unknown;
+  let thumbnail: File | null = null;
+  if (ct.includes("multipart/form-data")) {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return NextResponse.json(
+        { error: "invalid_body", message: "Expected multipart/form-data" },
+        { status: 400 },
+      );
+    }
+    payload = {
+      url: form.get("url"),
+      name: form.get("name"),
+      category: form.get("category"),
+      role: form.get("role"),
+    };
+    const thumb = form.get("thumbnail");
+    if (thumb instanceof File && thumb.size > 0) thumbnail = thumb;
+  } else {
+    payload = await request.json().catch(() => null);
+  }
+  const parsed = Body.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "invalid_body", details: parsed.error.flatten() },
@@ -58,6 +85,21 @@ export async function POST(request: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
+  // Upload the custom thumbnail before inserting the row so we can record its
+  // path in the same insert (and avoid a partial state if the upload fails).
+  let customPosterPath: string | null = null;
+  if (thumbnail) {
+    try {
+      customPosterPath = await uploadCustomPoster(admin, vimeoId, thumbnail);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json(
+        { error: "thumbnail_upload_failed", message: msg },
+        { status: 500 },
+      );
+    }
+  }
+
   // Insert as 'pending'. If the row already exists, return 409 — the user
   // can delete and re-add or trigger a retry.
   const { error: insertErr } = await admin
@@ -69,8 +111,12 @@ export async function POST(request: NextRequest) {
       category: parsed.data.category,
       role: parsed.data.role,
       status: "pending",
+      custom_poster_path: customPosterPath,
     });
   if (insertErr) {
+    if (customPosterPath) {
+      await admin.storage.from("clips").remove([customPosterPath]);
+    }
     if (/duplicate|unique/i.test(insertErr.message)) {
       return NextResponse.json(
         { error: "already_exists", vimeo_id: vimeoId },
@@ -124,3 +170,4 @@ export async function GET() {
   }
   return NextResponse.json({ videos: data ?? [] });
 }
+

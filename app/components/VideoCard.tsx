@@ -289,9 +289,11 @@ export function VideoCard({
 
   // Split "Brand, Work Title" into a small prefix (the brand/series) and a
   // larger title (the specific work). Both stay inside the same <h3> so the
-  // heading's accessible name remains the full, comma-joined string.
+  // heading's accessible name remains the full, comma-joined string. The
+  // visible prefix drops the comma — the split-style typography already
+  // separates the two halves, so the punctuation reads as noise.
   const commaIdx = name.indexOf(",");
-  const titlePrefix = commaIdx >= 0 ? name.slice(0, commaIdx + 1).trim() : null;
+  const titlePrefix = commaIdx >= 0 ? name.slice(0, commaIdx).trim() : null;
   const titleMain = commaIdx >= 0 ? name.slice(commaIdx + 1).trim() : name;
 
   const titleSizes =

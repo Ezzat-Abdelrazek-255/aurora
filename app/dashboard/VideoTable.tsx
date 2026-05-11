@@ -27,6 +27,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { useOpenVideo } from "../components/ModalProvider";
+import { resizeImage } from "../lib/imageResize";
 import { createSupabaseBrowserClient } from "../lib/supabase/client";
 import { CATEGORIES, ROLES, type Category, type Role } from "../lib/videos";
 
@@ -40,12 +41,19 @@ export type DashboardRow = {
   role: Role;
   status: Status;
   poster_url: string | null;
+  custom_poster_url: string | null;
   error_message: string | null;
   position: number;
   created_at: string;
 };
 
-type Draft = { name: string; category: Category; role: Role };
+type Draft = {
+  name: string;
+  category: Category;
+  role: Role;
+  thumbnail: File | null;
+  removeThumbnail: boolean;
+};
 type RowBusy = "delete" | "retry" | "edit" | undefined;
 
 const STORAGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/clips/`;
@@ -115,6 +123,7 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
               const next = payload.new as DashboardRow & {
                 clip_path: string | null;
                 poster_path: string | null;
+                custom_poster_path: string | null;
               };
               if (prev.some((r) => r.vimeo_id === next.vimeo_id)) return prev;
               return [...prev, fromRealtime(next)].sort(
@@ -127,6 +136,7 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
             }
             const next = payload.new as DashboardRow & {
               poster_path: string | null;
+              custom_poster_path: string | null;
             };
             return prev.map((r) =>
               r.vimeo_id === next.vimeo_id
@@ -141,6 +151,9 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
                     poster_url: next.poster_path
                       ? STORAGE_BASE + next.poster_path
                       : r.poster_url,
+                    custom_poster_url: next.custom_poster_path
+                      ? STORAGE_BASE + next.custom_poster_path
+                      : null,
                   }
                 : r,
             );
@@ -201,7 +214,13 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
 
   const startEdit = (r: DashboardRow) => {
     setEditingId(r.vimeo_id);
-    setDraft({ name: r.name, category: r.category, role: r.role });
+    setDraft({
+      name: r.name,
+      category: r.category,
+      role: r.role,
+      thumbnail: null,
+      removeThumbnail: false,
+    });
     setError(null);
   };
 
@@ -214,35 +233,65 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
     if (!editingId || !draft) return;
     const original = rows.find((r) => r.vimeo_id === editingId);
     if (!original) return;
-    const patch: Partial<Draft> = {};
+    const patch: { name?: string; category?: Category; role?: Role } = {};
     if (draft.name !== original.name) patch.name = draft.name.trim();
     if (draft.category !== original.category) patch.category = draft.category;
     if (draft.role !== original.role) patch.role = draft.role;
 
-    if (Object.keys(patch).length === 0) {
+    const hasThumbChange = !!draft.thumbnail || draft.removeThumbnail;
+    if (Object.keys(patch).length === 0 && !hasThumbChange) {
       cancelEdit();
       return;
     }
 
     setRowBusy(editingId, "edit");
     setError(null);
-    const res = await fetch(`/api/videos/${encodeURIComponent(editingId)}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    setRowBusy(editingId, undefined);
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as
-        | { error?: string; message?: string }
-        | null;
-      setError(`edit: ${body?.message ?? body?.error ?? res.status}`);
-      return;
+    try {
+      const form = new FormData();
+      if (patch.name) form.set("name", patch.name);
+      if (patch.category) form.set("category", patch.category);
+      if (patch.role) form.set("role", patch.role);
+      if (draft.thumbnail) {
+        const resized = await resizeImage(draft.thumbnail);
+        form.set(
+          "thumbnail",
+          new File([resized.blob], resized.name, { type: "image/jpeg" }),
+        );
+      } else if (draft.removeThumbnail) {
+        form.set("removeThumbnail", "true");
+      }
+      const res = await fetch(`/api/videos/${encodeURIComponent(editingId)}`, {
+        method: "PATCH",
+        body: form,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as
+          | { error?: string; message?: string }
+          | null;
+        setError(`edit: ${body?.message ?? body?.error ?? res.status}`);
+        return;
+      }
+      // Realtime delivers the canonical custom_poster_path; update local state
+      // optimistically for snappy feedback.
+      setRows((prev) =>
+        prev.map((r) =>
+          r.vimeo_id === editingId
+            ? {
+                ...r,
+                ...patch,
+                custom_poster_url: draft.removeThumbnail
+                  ? null
+                  : r.custom_poster_url,
+              }
+            : r,
+        ),
+      );
+      cancelEdit();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRowBusy(editingId, undefined);
     }
-    setRows((prev) =>
-      prev.map((r) => (r.vimeo_id === editingId ? { ...r, ...patch } : r)),
-    );
-    cancelEdit();
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -335,7 +384,7 @@ export function VideoTable({ initial }: { initial: DashboardRow[] }) {
                       // Dashboard preview doesn't track per-video aspect; default
                       // to 16:9. Homepage modal uses the persisted value.
                       aspect: 16 / 9,
-                      thumb: r.poster_url,
+                      thumb: r.custom_poster_url ?? r.poster_url,
                     })
                   }
                 />
@@ -504,15 +553,26 @@ function RowBody({
         aria-label={`Watch ${r.name}`}
         className="group relative block aspect-video w-[80px] overflow-hidden rounded-sm bg-neutral-100 disabled:cursor-not-allowed"
       >
-        {r.poster_url ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={r.poster_url}
-            alt=""
-            className="h-full w-full object-cover"
-            draggable={false}
-          />
-        ) : null}
+        {(() => {
+          const src = r.custom_poster_url ?? r.poster_url;
+          return src ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={src}
+              alt=""
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
+          ) : null;
+        })()}
+        {r.custom_poster_url && (
+          <span
+            className="pointer-events-none absolute left-0.5 top-0.5 rounded-sm bg-black/60 px-1 text-[8px] font-medium uppercase tracking-wider text-white"
+            title="Custom thumbnail"
+          >
+            ✦
+          </span>
+        )}
         {r.status === "ready" && (
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
             <svg
@@ -529,14 +589,21 @@ function RowBody({
       </button>
       <div className="min-w-0">
         {isEditing && draft ? (
-          <input
-            type="text"
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            autoFocus
-            className="box-border h-[28px] w-full rounded-md border border-neutral-300 bg-white px-2 font-serif text-[14px] leading-none outline-none focus:border-[#040d08]"
-            style={{ fontFamily: "var(--font-roslindale-display)" }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              autoFocus
+              className="box-border h-[28px] min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2 font-serif text-[14px] leading-none outline-none focus:border-[#040d08]"
+              style={{ fontFamily: "var(--font-roslindale-display)" }}
+            />
+            <ThumbnailPicker
+              hasExisting={!!r.custom_poster_url}
+              draft={draft}
+              setDraft={setDraft}
+            />
+          </div>
         ) : (
           <div
             className="font-serif text-[16px] leading-tight tracking-tight"
@@ -712,6 +779,7 @@ function fromRealtime(
   next: DashboardRow & {
     clip_path: string | null;
     poster_path: string | null;
+    custom_poster_path: string | null;
   },
 ): DashboardRow {
   return {
@@ -722,8 +790,69 @@ function fromRealtime(
     role: next.role,
     status: next.status,
     poster_url: next.poster_path ? STORAGE_BASE + next.poster_path : null,
+    custom_poster_url: next.custom_poster_path
+      ? STORAGE_BASE + next.custom_poster_path
+      : null,
     error_message: next.error_message ?? null,
     position: next.position,
     created_at: next.created_at,
   };
+}
+
+function ThumbnailPicker({
+  hasExisting,
+  draft,
+  setDraft,
+}: {
+  hasExisting: boolean;
+  draft: Draft;
+  setDraft: (d: Draft) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <label className="inline-flex h-[28px] cursor-pointer items-center whitespace-nowrap rounded-md bg-neutral-200 px-2.5 text-[10.5px] uppercase tracking-wide text-[#040d08] hover:bg-neutral-300">
+        {draft.thumbnail
+          ? draft.thumbnail.name.length > 22
+            ? `${draft.thumbnail.name.slice(0, 22)}…`
+            : draft.thumbnail.name
+          : hasExisting
+            ? "Replace thumb"
+            : "Upload thumb"}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              thumbnail: e.target.files?.[0] ?? null,
+              removeThumbnail: false,
+            })
+          }
+          className="hidden"
+        />
+      </label>
+      {draft.thumbnail && (
+        <button
+          type="button"
+          onClick={() => setDraft({ ...draft, thumbnail: null })}
+          className="text-[10.5px] uppercase tracking-wide text-neutral-600 hover:text-[#040d08]"
+        >
+          Clear
+        </button>
+      )}
+      {hasExisting && !draft.thumbnail && (
+        <label className="inline-flex items-center gap-1 text-[10.5px] uppercase tracking-wide text-neutral-600">
+          <input
+            type="checkbox"
+            checked={draft.removeThumbnail}
+            onChange={(e) =>
+              setDraft({ ...draft, removeThumbnail: e.target.checked })
+            }
+            className="h-3 w-3"
+          />
+          Remove
+        </label>
+      )}
+    </div>
+  );
 }

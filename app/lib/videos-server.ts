@@ -17,6 +17,7 @@ type VideoRow = {
   role: Role;
   clip_path: string | null;
   poster_path: string | null;
+  custom_poster_path: string | null;
   aspect_ratio: number | string | null;
 };
 
@@ -50,7 +51,7 @@ export async function listReadyVideos(): Promise<Video[]> {
   const { data, error } = await supabase
     .from("videos")
     .select(
-      "vimeo_id,vimeo_hash,name,category,role,clip_path,poster_path,aspect_ratio",
+      "vimeo_id,vimeo_hash,name,category,role,clip_path,poster_path,custom_poster_path,aspect_ratio",
     )
     .eq("status", "ready")
     .order("position", { ascending: true });
@@ -60,15 +61,18 @@ export async function listReadyVideos(): Promise<Video[]> {
   const bucket = supabase.storage.from("clips");
   const rows = (data ?? []) as VideoRow[];
   return rows
-    .filter((r) => r.clip_path && r.poster_path)
-    .map((r) => ({
-      id: r.vimeo_id,
-      hash: r.vimeo_hash,
-      name: r.name,
-      category: r.category,
-      role: r.role,
-      clipUrl: bucket.getPublicUrl(r.clip_path as string).data.publicUrl,
-      posterUrl: bucket.getPublicUrl(r.poster_path as string).data.publicUrl,
-      aspect: Number(r.aspect_ratio ?? 16 / 9),
-    }) satisfies Video);
+    .filter((r) => r.clip_path && (r.custom_poster_path || r.poster_path))
+    .map((r) => {
+      const posterKey = r.custom_poster_path ?? (r.poster_path as string);
+      return {
+        id: r.vimeo_id,
+        hash: r.vimeo_hash,
+        name: r.name,
+        category: r.category,
+        role: r.role,
+        clipUrl: bucket.getPublicUrl(r.clip_path as string).data.publicUrl,
+        posterUrl: bucket.getPublicUrl(posterKey).data.publicUrl,
+        aspect: Number(r.aspect_ratio ?? 16 / 9),
+      } satisfies Video;
+    });
 }
