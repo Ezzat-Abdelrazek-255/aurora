@@ -214,7 +214,7 @@ export default async function Home({
           key={`grid-${copy}`}
           data-loop-section
           aria-hidden={copy === 1 ? true : undefined}
-          className="grid grid-cols-1 px-4 pb-8 pt-8 md:grid-cols-3 md:px-6 lg:px-10"
+          className="grid grid-cols-1 px-4 pb-8 pt-28 md:grid-cols-3 md:px-6 md:pt-8 lg:px-10"
           style={{ columnGap: "var(--layout-x, 16px)" }}
         >
           <div className="flex flex-col max-md:gap-y-8 md:pt-24 lg:pt-28">{cols[0].map(renderCell(copy))}</div>
@@ -232,7 +232,7 @@ export default async function Home({
           key={`list-${copy}`}
           data-loop-section
           aria-hidden={copy === 1 ? true : undefined}
-          className="flex flex-col gap-y-8 py-8 pl-4 pr-4 md:gap-y-10 md:pl-[260px] md:pr-8 lg:pl-[300px]"
+          className="flex flex-col gap-y-8 pb-8 pl-4 pr-4 pt-28 md:gap-y-10 md:py-8 md:pl-[260px] md:pr-8 lg:pl-[300px]"
         >
           {seededOrder.map((idx) => {
             const item = items[idx];
@@ -324,7 +324,7 @@ export default async function Home({
           <SmoothScroll infinite />
           <ViewToggle />
           <FilterBar />
-          {process.env.VERCEL_ENV !== "production" && (
+          {process.env.SHOW_SEED_CONTROLS === "1" && (
             <SeedControls
               seed={seed}
               x={x}
@@ -336,7 +336,7 @@ export default async function Home({
           <ScrollIndicator />
 
           <nav
-            className="pointer-events-auto fixed left-4 top-6 z-40 font-serif text-[24px] leading-[1.2] mix-blend-difference text-white md:left-6 md:top-8 md:text-[26px] lg:left-10"
+            className="pointer-events-auto fixed inset-x-0 top-0 z-40 bg-white px-4 py-4 font-serif text-[24px] leading-[1.2] text-[#040d08] mix-blend-normal md:inset-x-auto md:left-6 md:top-8 md:bg-transparent md:p-0 md:text-[26px] md:text-white md:mix-blend-difference lg:left-10"
             aria-label="Primary"
           >
             <p className="font-bold tracking-tight">Aurora Leonard</p>
