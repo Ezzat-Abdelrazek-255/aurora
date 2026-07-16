@@ -36,8 +36,10 @@ export function PlayCard({
   const parallaxRef = useRef<HTMLDivElement | null>(null);
 
   // Mirror VideoCard's parallax — see VideoCard for the rationale (Lenis
-  // infinite mode breaks ScrollTrigger; we tick from rAF + IntersectionObserver
-  // and quickTo-smooth the target so it doesn't jitter).
+  // infinite mode breaks ScrollTrigger; yPercent is set directly per rAF as a
+  // pure function of viewport position so the modulo wrap swaps twin cards
+  // seamlessly — any tween lag or gated stale value would show as a slide
+  // inside the frame at the seam).
   useEffect(() => {
     const container = containerRef.current;
     const inner = parallaxRef.current;
@@ -45,58 +47,27 @@ export function PlayCard({
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const MAX_TRAVEL = 14;
-    const setY = gsap.quickTo(inner, "yPercent", {
-      duration: 0.5,
-      ease: "power2.out",
-    });
-
-    let active = false;
-    let rafId: number | null = null;
-    let primed = false;
-    let lastTarget = 0;
+    const MAX_TRAVEL = 18;
+    let rafId: number;
+    let lastTarget: number | null = null;
 
     const tick = () => {
-      rafId = null;
-      if (!active) return;
       const rect = container.getBoundingClientRect();
       const vh = window.innerHeight;
       const range = (vh + rect.height) / 2;
       const distance = rect.top + rect.height / 2 - vh / 2;
       const progress = Math.max(-1, Math.min(1, distance / range));
       const target = -progress * MAX_TRAVEL;
-      if (!primed) {
-        primed = true;
+      if (lastTarget === null || Math.abs(target - lastTarget) > 0.01) {
         gsap.set(inner, { yPercent: target });
-        lastTarget = target;
-      } else if (Math.abs(target - lastTarget) > 0.01) {
-        setY(target);
         lastTarget = target;
       }
       rafId = requestAnimationFrame(tick);
     };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            if (!active) {
-              active = true;
-              if (rafId === null) rafId = requestAnimationFrame(tick);
-            }
-          } else {
-            active = false;
-          }
-        }
-      },
-      { rootMargin: "200px 0px" },
-    );
-    io.observe(container);
+    rafId = requestAnimationFrame(tick);
 
     return () => {
-      io.disconnect();
-      active = false;
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      cancelAnimationFrame(rafId);
       gsap.set(inner, { yPercent: 0 });
     };
   }, []);
@@ -124,7 +95,7 @@ export function PlayCard({
       <div
         ref={parallaxRef}
         className="absolute inset-x-0"
-        style={{ top: "-20%", height: "140%", willChange: "transform" }}
+        style={{ top: "-30%", height: "160%", willChange: "transform" }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

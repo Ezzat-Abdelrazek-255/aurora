@@ -43,12 +43,20 @@ export function VideoCard({
   const hoveredRef = useRef(false);
   hoveredRef.current = hovered;
 
-  // Image parallax: translate the inner wrapper (which is 140% of container
-  // height with a -20% top bleed) as the card moves through the viewport. We
+  // Image parallax: translate the inner wrapper (which is 160% of container
+  // height with a -30% top bleed) as the card moves through the viewport. We
   // read getBoundingClientRect() per rAF instead of using ScrollTrigger
   // because the home page runs Lenis in `infinite` mode and its modulo wrap
-  // breaks ScrollTrigger's cached absolute positions. gsap.quickTo smooths
-  // the per-frame target into a tween so it doesn't jitter.
+  // breaks ScrollTrigger's cached absolute positions.
+  //
+  // yPercent must stay a pure function of the card's CURRENT viewport
+  // position — no tween smoothing, no viewport gating. The infinite wrap
+  // teleports the page by one loop period, swapping every visible card for
+  // its twin in the other [data-loop-section] copy; the seam is invisible
+  // only if a card entering at pixel position p renders exactly the offset
+  // its twin had at p. Any lag (quickTo) or stale gated value turns the wrap
+  // into a visible slide inside the frame. Lenis already smooths the scroll,
+  // so the direct set doesn't jitter.
   useEffect(() => {
     const container = containerRef.current;
     const inner = parallaxRef.current;
@@ -56,20 +64,11 @@ export function VideoCard({
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const MAX_TRAVEL = 14; // yPercent on inner; inner is 140% tall so 14% ≈ 19.6% of container
-    const setY = gsap.quickTo(inner, "yPercent", {
-      duration: 0.5,
-      ease: "power2.out",
-    });
-
-    let active = false;
-    let rafId: number | null = null;
-    let primed = false;
-    let lastTarget = 0;
+    const MAX_TRAVEL = 18; // yPercent on inner; inner is 160% tall so 18% ≈ 28.8% of container
+    let rafId: number;
+    let lastTarget: number | null = null;
 
     const tick = () => {
-      rafId = null;
-      if (!active) return;
       const rect = container.getBoundingClientRect();
       const vh = window.innerHeight;
       const range = (vh + rect.height) / 2;
@@ -77,43 +76,18 @@ export function VideoCard({
       const progress = Math.max(-1, Math.min(1, distance / range));
       // progress > 0 → card is below center → image shifts up (showing top)
       const target = -progress * MAX_TRAVEL;
-      if (!primed) {
-        // Snap to the target on the first frame so the page doesn't render an
-        // initial 0 → target tween (perceived as a brief "scale-in" on every
-        // card at load).
-        primed = true;
+      // Offscreen cards saturate at ±MAX_TRAVEL, so this skip keeps GSAP idle
+      // for them — their per-frame cost is just the rect read.
+      if (lastTarget === null || Math.abs(target - lastTarget) > 0.01) {
         gsap.set(inner, { yPercent: target });
-        lastTarget = target;
-      } else if (Math.abs(target - lastTarget) > 0.01) {
-        // Skip the quickTo call when the scroll-derived target hasn't moved.
-        // Avoids waking GSAP's tween machinery 60×/sec per card while idle.
-        setY(target);
         lastTarget = target;
       }
       rafId = requestAnimationFrame(tick);
     };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            if (!active) {
-              active = true;
-              if (rafId === null) rafId = requestAnimationFrame(tick);
-            }
-          } else {
-            active = false;
-          }
-        }
-      },
-      { rootMargin: "200px 0px" },
-    );
-    io.observe(container);
+    rafId = requestAnimationFrame(tick);
 
     return () => {
-      io.disconnect();
-      active = false;
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      cancelAnimationFrame(rafId);
       gsap.set(inner, { yPercent: 0 });
     };
   }, []);
@@ -223,12 +197,12 @@ export function VideoCard({
       className="relative w-full overflow-hidden bg-neutral-200"
       style={{ aspectRatio: aspect }}
     >
-      {/* Parallax wrapper: 140% tall with -20% top bleed so its yPercent can
-          travel ±~14 without exposing the container edges. */}
+      {/* Parallax wrapper: 160% tall with -30% top bleed so its yPercent can
+          travel ±~18 without exposing the container edges. */}
       <div
         ref={parallaxRef}
         className="absolute inset-x-0"
-        style={{ top: "-20%", height: "140%", willChange: "transform" }}
+        style={{ top: "-30%", height: "160%", willChange: "transform" }}
       >
         {/* First-frame JPG (Supabase Storage). Rendered eagerly underneath as
             the resting visual; the <video> below uses the same URL as its
