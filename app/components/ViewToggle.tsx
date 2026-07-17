@@ -58,7 +58,7 @@ export function ViewToggle() {
 
   return (
     <div
-      className="fixed right-4 top-4 z-50 flex items-center p-1"
+      className="fixed right-4 top-4 z-50 md:top-7 flex items-center p-1"
       style={{ gap: GAP_PX, fontFamily: "var(--font-roslindale-text)" }}
       role="group"
       aria-label="Layout view"
